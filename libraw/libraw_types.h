@@ -97,7 +97,7 @@ typedef unsigned char uchar;
 typedef unsigned short ushort;
 
 #ifdef WIN32
-#ifdef LIBRAW_NODLL
+#if defined(LIBRAW_NODLL) || defined(_LIB)
 # define DllDef
 #else
 # ifdef LIBRAW_BUILDLIB
