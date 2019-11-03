@@ -1,6 +1,6 @@
 /* -*- C++ -*-
  * File: libraw_alloc.h
- * Copyright 2008-2018 LibRaw LLC (info@libraw.org)
+ * Copyright 2008-2019 LibRaw LLC (info@libraw.org)
  * Created: Sat Mar  22, 2008
  *
  * LibRaw C++ interface
@@ -44,7 +44,7 @@ public:
   void *malloc(size_t sz)
   {
 #ifdef LIBRAW_USE_CALLOC_INSTEAD_OF_MALLOC
-    void *ptr = ::calloc(sz + extra_bytes,1);
+    void *ptr = ::calloc(sz + extra_bytes, 1);
 #else
     void *ptr = ::malloc(sz + extra_bytes);
 #endif
@@ -86,13 +86,16 @@ private:
   {
     if (ptr)
     {
-      for (int i = 0; i < LIBRAW_MSIZE; i++)
+      for (int i = 0; i < LIBRAW_MSIZE - 1; i++)
         if (!mems[i])
         {
           mems[i] = ptr;
           return;
         }
 #ifdef LIBRAW_MEMPOOL_CHECK
+      /* remember ptr in last mems item to be free'ed at cleanup */
+      if (!mems[LIBRAW_MSIZE - 1])
+        mems[LIBRAW_MSIZE - 1] = ptr;
       throw LIBRAW_EXCEPTION_MEMPOOL;
 #endif
     }
