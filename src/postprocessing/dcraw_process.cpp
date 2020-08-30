@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
  LibRaw is free software; you can redistribute it and/or modify
  it under the terms of the one of two licenses as you choose:
@@ -91,9 +91,12 @@ int LibRaw::dcraw_process(void)
       if (load_raw == &LibRaw::x3f_load_raw)
       {
         // Filter out zeroes
-        for (int i = 0; i < S.height * S.width * 4; i++)
-          if ((short)imgdata.image[0][i] < 0)
-            imgdata.image[0][i] = 0;
+        for (int i = 0; i < S.height * S.width; i++)
+        {
+          for (int c = 0; c < 4; c++)
+            if ((short)imgdata.image[i][c] < 0)
+              imgdata.image[i][c] = 0;
+        }
       }
       SET_PROC_FLAG(LIBRAW_PROGRESS_FOVEON_INTERPOLATE);
     }

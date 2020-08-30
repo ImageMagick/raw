@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
  Placehoder functions to build LibRaw w/o postprocessing tools
  
@@ -27,5 +27,5 @@ libraw_processed_image_t *LibRaw::dcraw_make_mem_image(int *) {
   return NULL;
 }
 libraw_processed_image_t *LibRaw::dcraw_make_mem_thumb(int *){ return NULL;}
-void LibRaw::lin_interpolate_loop(int code[16][16][32], int size) {}
+void LibRaw::lin_interpolate_loop(int *code, int size) {}
 void LibRaw::scale_colors_loop(float scale_mul[4]) {}

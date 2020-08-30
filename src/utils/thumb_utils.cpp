@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
 
  LibRaw is free software; you can redistribute it and/or modify
@@ -24,6 +24,12 @@ void LibRaw::kodak_thumb_loader()
 
   if (ID.toffset + est_datasize > ID.input->size() + THUMB_READ_BEYOND)
     throw LIBRAW_EXCEPTION_IO_EOF;
+
+  if(INT64(T.theight) * INT64(T.twidth) > 1024ULL * 1024ULL * LIBRAW_MAX_THUMBNAIL_MB)
+      throw LIBRAW_EXCEPTION_IO_CORRUPT;
+
+  if (INT64(T.theight) * INT64(T.twidth) < 64ULL)
+      throw LIBRAW_EXCEPTION_IO_CORRUPT;
 
   // some kodak cameras
   ushort s_height = S.height, s_width = S.width, s_iwidth = S.iwidth,
@@ -136,7 +142,7 @@ void LibRaw::kodak_thumb_loader()
   libraw_internal_data.output_data.histogram = t_hist;
 
   // make curve output curve!
-  ushort(*t_curve) = (ushort *)calloc(sizeof(C.curve), 1);
+  ushort *t_curve = (ushort *)calloc(sizeof(C.curve), 1);
   merror(t_curve, "LibRaw::kodak_thumb_loader()");
   memmove(t_curve, C.curve, sizeof(C.curve));
   memset(C.curve, 0, sizeof(C.curve));
@@ -248,10 +254,12 @@ int LibRaw::thumbOK(INT64 maxsz)
               LIBRAW_PROCESSING_USE_PPM16_THUMBS)
                  ? 2
                  : 1);
+#ifdef USE_X3FTOOLS
   else if (write_thumb == &LibRaw::x3f_thumb_loader)
   {
     tsize = x3f_thumb_size();
   }
+#endif
   else // Kodak => no check
     tsize = 1;
   if (tsize < 0)

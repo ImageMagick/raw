@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -48,12 +48,12 @@ void LibRaw::nikon_3700()
   } table[] = {{0x00, "Pentax", "Optio 33WR"},
                {0x03, "Nikon", "E3200"},
                {0x32, "Nikon", "E3700"},
-               {0x33, "Olympus", "C740UZ"}};
+               {0x33, "Olympus", "C-740UZ"}};
 
   fseek(ifp, 3072, SEEK_SET);
   fread(dp, 1, 24, ifp);
   bits = (dp[8] & 3) << 4 | (dp[20] & 3);
-  for (i = 0; i < sizeof table / sizeof *table; i++)
+  for (i = 0; i < int(sizeof table / sizeof *table); i++)
     if (bits == table[i].bits)
     {
       strcpy(make, table[i].t_make);
@@ -71,7 +71,7 @@ int LibRaw::minolta_z2()
 
   fseek(ifp, -sizeof tail, SEEK_END);
   fread(tail, 1, sizeof tail, ifp);
-  for (nz = i = 0; i < sizeof tail; i++)
+  for (nz = i = 0; i < int(sizeof tail); i++)
     if (tail[i])
       nz++;
   return nz > 20;
@@ -104,7 +104,7 @@ void LibRaw::parse_redcine()
   if (get4() != i || get4() != 0x52454f42)
   {
     fseek(ifp, 0, SEEK_SET);
-    while ((len = get4()) != EOF)
+    while ((len = get4()) != (unsigned)EOF)
     {
       if (get4() == 0x52454456)
         if (is_raw++ == shot_select)
@@ -124,7 +124,7 @@ void LibRaw::parse_redcine()
 
 void LibRaw::parse_cine()
 {
-  unsigned off_head, off_setup, off_image, i;
+  unsigned off_head, off_setup, off_image, i, temp;
 
   order = 0x4949;
   fseek(ifp, 4, SEEK_SET);
@@ -178,9 +178,10 @@ void LibRaw::parse_cine()
   case 0:
     flip = 2;
   }
-  cam_mul[0] = getreal(11);
-  cam_mul[2] = getreal(11);
-  maximum = ~((~0u) << get4());
+  cam_mul[0] = getreal(LIBRAW_EXIFTAG_TYPE_FLOAT);
+  cam_mul[2] = getreal(LIBRAW_EXIFTAG_TYPE_FLOAT);
+  temp = get4();
+  maximum = ~((~0u) << LIM(temp, 1, 31));
   fseek(ifp, 668, SEEK_CUR);
   shutter = get4() / 1000000000.0;
   fseek(ifp, off_image, SEEK_SET);
@@ -224,7 +225,7 @@ void LibRaw::parse_smal(int offset, int fsize)
   ver = fgetc(ifp);
   if (ver == 6)
     fseek(ifp, 5, SEEK_CUR);
-  if (get4() != fsize)
+  if (get4() != (unsigned)fsize)
     return;
   if (ver > 6)
     data_offset = get4();
@@ -413,7 +414,7 @@ void LibRaw::parse_kyocera()
   if ((c > 6) && (c < 20))
     iso_speed = table[c - 7];
   shutter = libraw_powf64l(2.0f, (((float)get4()) / 8.0f)) / 16000.0f;
-  FORC4 cam_mul[c ^ (c >> 1)] = get4();
+  FORC4 cam_mul[RGGB_2_RGBG(c)] = get4();
   fseek(ifp, 88, SEEK_SET);
   aperture = libraw_powf64l(2.0f, ((float)get4()) / 16.0f);
   fseek(ifp, 112, SEEK_SET);
@@ -567,3 +568,111 @@ void LibRaw::get_timestamp(int reversed)
   if (mktime(&t) > 0)
     timestamp = mktime(&t);
 }
+
+#ifdef USE_6BY9RPI
+void LibRaw::parse_raspberrypi()
+{
+	//This structure is at offset 0xB0 from the 'BRCM' ident.
+	struct brcm_raw_header {
+		uint8_t name[32];
+		uint16_t h_width;
+		uint16_t h_height;
+		uint16_t padding_right;
+		uint16_t padding_down;
+		uint32_t dummy[6];
+		uint16_t transform;
+		uint16_t format;
+		uint8_t bayer_order;
+		uint8_t bayer_format;
+	};
+	//Values taken from https://github.com/raspberrypi/userland/blob/master/interface/vctypes/vc_image_types.h
+#define BRCM_FORMAT_BAYER  33
+#define BRCM_BAYER_RAW8    2
+#define BRCM_BAYER_RAW10   3
+#define BRCM_BAYER_RAW12   4
+#define BRCM_BAYER_RAW14   5
+#define BRCM_BAYER_RAW16   6
+
+	struct brcm_raw_header header;
+	uint8_t brcm_tag[4];
+
+	// Sanity check that the caller has found a BRCM header
+	if (!fread(brcm_tag, 1, sizeof(brcm_tag), ifp) ||
+		memcmp(brcm_tag, "BRCM", sizeof(brcm_tag)))
+		return;
+
+	width = raw_width;
+	data_offset = ftell(ifp) + 0x8000 - sizeof(brcm_tag);
+
+	if (!fseek(ifp, 0xB0 - sizeof(brcm_tag), SEEK_CUR) &&
+		fread(&header, 1, sizeof(header), ifp)) {
+		switch (header.bayer_order) {
+		case 0: //RGGB
+			filters = 0x94949494;
+			break;
+		case 1: //GBRG
+			filters = 0x49494949;
+			break;
+		default:
+		case 2: //BGGR
+			filters = 0x16161616;
+			break;
+		case 3: //GRBG
+			filters = 0x61616161;
+			break;
+		}
+
+		if (header.format == BRCM_FORMAT_BAYER) {
+			switch (header.bayer_format) {
+			case BRCM_BAYER_RAW8:
+				load_raw = &LibRaw::rpi_load_raw8;
+				//1 pixel per byte
+				raw_stride = ((header.h_width + header.padding_right) + 31)&(~31);
+				width = header.h_width;
+				raw_height = height = header.h_height;
+				is_raw = 1;
+				order = 0x4d4d;
+				break;
+			case BRCM_BAYER_RAW10:
+				load_raw = &LibRaw::nokia_load_raw;
+				//4 pixels per 5 bytes
+				raw_stride = (((((header.h_width + header.padding_right) * 5) + 3) >> 2) + 31)&(~31);
+				width = header.h_width;
+				raw_height = height = header.h_height;
+				is_raw = 1;
+				order = 0x4d4d;
+				break;
+			case BRCM_BAYER_RAW12:
+				load_raw = &LibRaw::rpi_load_raw12;
+				//2 pixels per 3 bytes
+				raw_stride = (((((header.h_width + header.padding_right) * 3) + 1) >> 1) + 31)&(~31);
+				width = header.h_width;
+				raw_height = height = header.h_height;
+				is_raw = 1;
+				order = 0x4d4d;
+				break;
+			case BRCM_BAYER_RAW14:
+				load_raw = &LibRaw::rpi_load_raw14;
+				//4 pixels per 7 bytes
+				raw_stride = (((((header.h_width + header.padding_right) * 7) + 3) >> 2) + 31)&(~31);
+				width = header.h_width;
+				raw_height = height = header.h_height;
+				is_raw = 1;
+				order = 0x4d4d;
+				break;
+			case BRCM_BAYER_RAW16:
+				load_raw = &LibRaw::rpi_load_raw16;
+				//1 pixel per 2 bytes
+				raw_stride = (((header.h_width + header.padding_right) << 1) + 31)&(~31);
+				width = header.h_width;
+				raw_height = height = header.h_height;
+				is_raw = 1;
+				order = 0x4d4d;
+				break;
+			default:
+				break;
+			}
+		}
+	}
+}
+#endif

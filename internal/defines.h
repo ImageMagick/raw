@@ -1,5 +1,5 @@
 /*
-  Copyright 2008-2019 LibRaw LLC (info@libraw.org)
+  Copyright 2008-2020 LibRaw LLC (info@libraw.org)
 
 LibRaw is free software; you can redistribute it and/or modify
 it under the terms of the one of two licenses as you choose:
@@ -124,7 +124,14 @@ typedef unsigned long long UINT64;
     j = t;                                                                     \
   }
 
-static float fMAX(float a, float b) { return MAX(a, b); }
+#ifdef __GNUC__
+inline
+#elif defined(_MSC_VER)
+__forceinline
+#else
+static
+#endif
+float fMAX(float a, float b) { return MAX(a, b); }
 
 /*
    In order to inline this calculation, I make the risky
@@ -164,6 +171,13 @@ static float fMAX(float a, float b) { return MAX(a, b); }
         2 B G B G B G	2 G R G R G R	2 G B G B G B	2 R G R G R G
         3 G R G R G R	3 B G B G B G	3 R G R G R G	3 G B G B G B
  */
+
+// _RGBG means R, G1, B, G2 sequence
+#define GRBG_2_RGBG(q)    (q ^ (q >> 1) ^ 1)
+#define RGGB_2_RGBG(q)    (q ^ (q >> 1))
+#define BG2RG1_2_RGBG(q)  (q ^ 2)
+#define GRGB_2_RGBG(q)    (q ^ 1)
+#define RBGG_2_RGBG(q)    ((q >> 1) | ((q & 1) << 1))
 
 #define RAWINDEX(row, col) ((row)*raw_width + (col))
 #define RAW(row, col) raw_image[(row)*raw_width + (col)]

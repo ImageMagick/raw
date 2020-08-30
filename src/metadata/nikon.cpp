@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
  LibRaw is free software; you can redistribute it and/or modify
  it under the terms of the one of two licenses as you choose:
@@ -14,33 +14,79 @@
 
 #include "../../internal/dcraw_defs.h"
 
+static const uchar xlat[2][256] = {
+    {0xc1, 0xbf, 0x6d, 0x0d, 0x59, 0xc5, 0x13, 0x9d, 0x83, 0x61, 0x6b, 0x4f,
+     0xc7, 0x7f, 0x3d, 0x3d, 0x53, 0x59, 0xe3, 0xc7, 0xe9, 0x2f, 0x95, 0xa7,
+     0x95, 0x1f, 0xdf, 0x7f, 0x2b, 0x29, 0xc7, 0x0d, 0xdf, 0x07, 0xef, 0x71,
+     0x89, 0x3d, 0x13, 0x3d, 0x3b, 0x13, 0xfb, 0x0d, 0x89, 0xc1, 0x65, 0x1f,
+     0xb3, 0x0d, 0x6b, 0x29, 0xe3, 0xfb, 0xef, 0xa3, 0x6b, 0x47, 0x7f, 0x95,
+     0x35, 0xa7, 0x47, 0x4f, 0xc7, 0xf1, 0x59, 0x95, 0x35, 0x11, 0x29, 0x61,
+     0xf1, 0x3d, 0xb3, 0x2b, 0x0d, 0x43, 0x89, 0xc1, 0x9d, 0x9d, 0x89, 0x65,
+     0xf1, 0xe9, 0xdf, 0xbf, 0x3d, 0x7f, 0x53, 0x97, 0xe5, 0xe9, 0x95, 0x17,
+     0x1d, 0x3d, 0x8b, 0xfb, 0xc7, 0xe3, 0x67, 0xa7, 0x07, 0xf1, 0x71, 0xa7,
+     0x53, 0xb5, 0x29, 0x89, 0xe5, 0x2b, 0xa7, 0x17, 0x29, 0xe9, 0x4f, 0xc5,
+     0x65, 0x6d, 0x6b, 0xef, 0x0d, 0x89, 0x49, 0x2f, 0xb3, 0x43, 0x53, 0x65,
+     0x1d, 0x49, 0xa3, 0x13, 0x89, 0x59, 0xef, 0x6b, 0xef, 0x65, 0x1d, 0x0b,
+     0x59, 0x13, 0xe3, 0x4f, 0x9d, 0xb3, 0x29, 0x43, 0x2b, 0x07, 0x1d, 0x95,
+     0x59, 0x59, 0x47, 0xfb, 0xe5, 0xe9, 0x61, 0x47, 0x2f, 0x35, 0x7f, 0x17,
+     0x7f, 0xef, 0x7f, 0x95, 0x95, 0x71, 0xd3, 0xa3, 0x0b, 0x71, 0xa3, 0xad,
+     0x0b, 0x3b, 0xb5, 0xfb, 0xa3, 0xbf, 0x4f, 0x83, 0x1d, 0xad, 0xe9, 0x2f,
+     0x71, 0x65, 0xa3, 0xe5, 0x07, 0x35, 0x3d, 0x0d, 0xb5, 0xe9, 0xe5, 0x47,
+     0x3b, 0x9d, 0xef, 0x35, 0xa3, 0xbf, 0xb3, 0xdf, 0x53, 0xd3, 0x97, 0x53,
+     0x49, 0x71, 0x07, 0x35, 0x61, 0x71, 0x2f, 0x43, 0x2f, 0x11, 0xdf, 0x17,
+     0x97, 0xfb, 0x95, 0x3b, 0x7f, 0x6b, 0xd3, 0x25, 0xbf, 0xad, 0xc7, 0xc5,
+     0xc5, 0xb5, 0x8b, 0xef, 0x2f, 0xd3, 0x07, 0x6b, 0x25, 0x49, 0x95, 0x25,
+     0x49, 0x6d, 0x71, 0xc7},
+    {0xa7, 0xbc, 0xc9, 0xad, 0x91, 0xdf, 0x85, 0xe5, 0xd4, 0x78, 0xd5, 0x17,
+     0x46, 0x7c, 0x29, 0x4c, 0x4d, 0x03, 0xe9, 0x25, 0x68, 0x11, 0x86, 0xb3,
+     0xbd, 0xf7, 0x6f, 0x61, 0x22, 0xa2, 0x26, 0x34, 0x2a, 0xbe, 0x1e, 0x46,
+     0x14, 0x68, 0x9d, 0x44, 0x18, 0xc2, 0x40, 0xf4, 0x7e, 0x5f, 0x1b, 0xad,
+     0x0b, 0x94, 0xb6, 0x67, 0xb4, 0x0b, 0xe1, 0xea, 0x95, 0x9c, 0x66, 0xdc,
+     0xe7, 0x5d, 0x6c, 0x05, 0xda, 0xd5, 0xdf, 0x7a, 0xef, 0xf6, 0xdb, 0x1f,
+     0x82, 0x4c, 0xc0, 0x68, 0x47, 0xa1, 0xbd, 0xee, 0x39, 0x50, 0x56, 0x4a,
+     0xdd, 0xdf, 0xa5, 0xf8, 0xc6, 0xda, 0xca, 0x90, 0xca, 0x01, 0x42, 0x9d,
+     0x8b, 0x0c, 0x73, 0x43, 0x75, 0x05, 0x94, 0xde, 0x24, 0xb3, 0x80, 0x34,
+     0xe5, 0x2c, 0xdc, 0x9b, 0x3f, 0xca, 0x33, 0x45, 0xd0, 0xdb, 0x5f, 0xf5,
+     0x52, 0xc3, 0x21, 0xda, 0xe2, 0x22, 0x72, 0x6b, 0x3e, 0xd0, 0x5b, 0xa8,
+     0x87, 0x8c, 0x06, 0x5d, 0x0f, 0xdd, 0x09, 0x19, 0x93, 0xd0, 0xb9, 0xfc,
+     0x8b, 0x0f, 0x84, 0x60, 0x33, 0x1c, 0x9b, 0x45, 0xf1, 0xf0, 0xa3, 0x94,
+     0x3a, 0x12, 0x77, 0x33, 0x4d, 0x44, 0x78, 0x28, 0x3c, 0x9e, 0xfd, 0x65,
+     0x57, 0x16, 0x94, 0x6b, 0xfb, 0x59, 0xd0, 0xc8, 0x22, 0x36, 0xdb, 0xd2,
+     0x63, 0x98, 0x43, 0xa1, 0x04, 0x87, 0x86, 0xf7, 0xa6, 0x26, 0xbb, 0xd6,
+     0x59, 0x4d, 0xbf, 0x6a, 0x2e, 0xaa, 0x2b, 0xef, 0xe6, 0x78, 0xb6, 0x4e,
+     0xe0, 0x2f, 0xdc, 0x7c, 0xbe, 0x57, 0x19, 0x32, 0x7e, 0x2a, 0xd0, 0xb8,
+     0xba, 0x29, 0x00, 0x3c, 0x52, 0x7d, 0xa8, 0x49, 0x3b, 0x2d, 0xeb, 0x25,
+     0x49, 0xfa, 0xa3, 0xaa, 0x39, 0xa7, 0xc5, 0xa7, 0x50, 0x11, 0x36, 0xfb,
+     0xc6, 0x67, 0x4a, 0xf5, 0xa5, 0x12, 0x65, 0x7e, 0xb0, 0xdf, 0xaf, 0x4e,
+     0xb3, 0x61, 0x7f, 0x2f} };
+
+
+
 void LibRaw::processNikonLensData(uchar *LensData, unsigned len)
 {
 
   ushort i;
-
-  if (!(imgdata.lens.nikon.LensType & 0x01))
-  {
+  if (imgdata.lens.nikon.LensType & 0x80) {
+    strcpy (ilm.LensFeatures_pre, "AF-P");
+  } else if (!(imgdata.lens.nikon.LensType & 0x01)) {
     ilm.LensFeatures_pre[0] = 'A';
     ilm.LensFeatures_pre[1] = 'F';
-  }
-  else
-  {
+  } else {
     ilm.LensFeatures_pre[0] = 'M';
     ilm.LensFeatures_pre[1] = 'F';
   }
 
-  if (imgdata.lens.nikon.LensType & 0x02)
-  {
-    if (imgdata.lens.nikon.LensType & 0x04)
-      ilm.LensFeatures_suf[0] = 'G';
-    else
-      ilm.LensFeatures_suf[0] = 'D';
-    ilm.LensFeatures_suf[1] = ' ';
+  if (imgdata.lens.nikon.LensType & 0x40) {
+    ilm.LensFeatures_suf[0] = 'E';
+  } else if (imgdata.lens.nikon.LensType & 0x04) {
+    ilm.LensFeatures_suf[0] = 'G';
+  } else if (imgdata.lens.nikon.LensType & 0x02) {
+    ilm.LensFeatures_suf[0] = 'D';
   }
 
   if (imgdata.lens.nikon.LensType & 0x08)
   {
+    ilm.LensFeatures_suf[1] = ' ';
     ilm.LensFeatures_suf[2] = 'V';
     ilm.LensFeatures_suf[3] = 'R';
   }
@@ -76,17 +122,27 @@ void LibRaw::processNikonLensData(uchar *LensData, unsigned len)
     case 16:
       i = 8;
       break;
-    case 58: // "Z 6", "Z 7"
-      ilm.CameraMount = LIBRAW_MOUNT_Nikon_Z;
-      ilm.CameraFormat = LIBRAW_FORMAT_FF;
+    case 58: // "Z 6", "Z 7", "Z 50", D780
+      if (model[6] == 'Z')
+        ilm.CameraMount = LIBRAW_MOUNT_Nikon_Z;
+      if (imNikon.HighSpeedCropFormat != 12)
+        ilm.CameraFormat = LIBRAW_FORMAT_FF;
       i = 1;
       while ((LensData[i] == LensData[0]) && (i < 17))
         i++;
       if (i == 17)
       {
         ilm.LensMount = LIBRAW_MOUNT_Nikon_Z;
-        ilm.LensFormat = LIBRAW_FORMAT_FF;
         ilm.LensID = sget2(LensData + 0x2c);
+        switch (ilm.LensID) {
+          case 11: case 12:
+            ilm.LensFormat = LIBRAW_FORMAT_APSC;
+            break;
+          case 1:  case 2:  case 4:  case 8:
+          case 9: case 13: case 14: case 15:
+            ilm.LensFormat = LIBRAW_FORMAT_FF;
+            break;
+        }
         if (ilm.MaxAp4CurFocal < 0.7f)
           ilm.MaxAp4CurFocal = libraw_powf64l(
               2.0f, (float)sget2(LensData + 0x32) / 384.0f - 1.0f);
@@ -99,7 +155,8 @@ void LibRaw::processNikonLensData(uchar *LensData, unsigned len)
       }
       i = 9;
       ilm.LensMount = LIBRAW_MOUNT_Nikon_F;
-      strcpy(ilm.Adapter, "FTZ");
+      if (ilm.CameraMount == LIBRAW_MOUNT_Nikon_Z)
+        strcpy(ilm.Adapter, "FTZ");
       break;
     }
     imgdata.lens.nikon.LensIDNumber = LensData[i];
@@ -158,7 +215,6 @@ void LibRaw::processNikonLensData(uchar *LensData, unsigned len)
 void LibRaw::Nikon_NRW_WBtag(int wb, int skip)
 {
 
-#define icWB imgdata.color.WB_Coeffs
   int r, g0, g1, b;
   if (skip)
     get4(); // skip wb "CCT", it is not unique
@@ -168,17 +224,16 @@ void LibRaw::Nikon_NRW_WBtag(int wb, int skip)
   b = get4();
   if (r && g0 && g1 && b)
   {
-    icWB[wb][0] = r << 1;
-    icWB[wb][1] = g0;
-    icWB[wb][2] = b << 1;
-    icWB[wb][3] = g1;
+    icWBC[wb][0] = r << 1;
+    icWBC[wb][1] = g0;
+    icWBC[wb][2] = b << 1;
+    icWBC[wb][3] = g1;
   }
   return;
-#undef icWB
 }
+
 void LibRaw::parseNikonMakernote(int base, int uptag, unsigned dng_writer)
 {
-#define icWB imgdata.color.WB_Coeffs
 
   unsigned offset = 0, entries, tag, type, len, save;
 
@@ -243,7 +298,7 @@ void LibRaw::parseNikonMakernote(int base, int uptag, unsigned dng_writer)
       ilm.LensMount = ilm.CameraMount = LIBRAW_MOUNT_FixedLens;
       ilm.FocalType = LIBRAW_FT_ZOOM_LENS;
     }
-    else if ((tag == 0x000c) && (len == 4) && (type == 5))
+    else if ((tag == 0x000c) && (len == 4) && tagtypeIs(LIBRAW_EXIFTAG_TYPE_RATIONAL))
     {
       cam_mul[0] = getreal(type);
       cam_mul[2] = getreal(type);
@@ -264,11 +319,11 @@ void LibRaw::parseNikonMakernote(int base, int uptag, unsigned dng_writer)
       cj = fgetc(ifp);
       ck = fgetc(ifp);
       if (ck)
-        imgdata.makernotes.common.FlashEC = (float)(ci * cj) / (float)ck;
+        imCommon.FlashEC = (float)(ci * cj) / (float)ck;
     }
     else if (tag == 0x0014)
     {
-      if (type == 7)
+      if (tagtypeIs(LIBRAW_EXIFTOOLTAGTYPE_binary))
       {
         if (len == 2560)
         { // E5400, E8400, E8700, E8800
@@ -277,45 +332,41 @@ void LibRaw::parseNikonMakernote(int base, int uptag, unsigned dng_writer)
           cam_mul[0] = get2() / 256.0;
           cam_mul[2] = get2() / 256.0;
           cam_mul[1] = cam_mul[3] = 1.0;
-          icWB[LIBRAW_WBI_Auto][0] = get2();
-          icWB[LIBRAW_WBI_Auto][2] = get2();
-          icWB[LIBRAW_WBI_Daylight][0] = get2();
-          icWB[LIBRAW_WBI_Daylight][2] = get2();
+          icWBC[LIBRAW_WBI_Auto][0] = get2();
+          icWBC[LIBRAW_WBI_Auto][2] = get2();
+          icWBC[LIBRAW_WBI_Daylight][0] = get2();
+          icWBC[LIBRAW_WBI_Daylight][2] = get2();
           fseek(ifp, 0x18L, SEEK_CUR);
-          icWB[LIBRAW_WBI_Tungsten][0] = get2();
-          icWB[LIBRAW_WBI_Tungsten][2] = get2();
+          icWBC[LIBRAW_WBI_Tungsten][0] = get2();
+          icWBC[LIBRAW_WBI_Tungsten][2] = get2();
           fseek(ifp, 0x18L, SEEK_CUR);
-          icWB[LIBRAW_WBI_FL_W][0] = get2();
-          icWB[LIBRAW_WBI_FL_W][2] = get2();
-          icWB[LIBRAW_WBI_FL_N][0] = get2();
-          icWB[LIBRAW_WBI_FL_N][2] = get2();
-          icWB[LIBRAW_WBI_FL_D][0] = get2();
-          icWB[LIBRAW_WBI_FL_D][2] = get2();
-          icWB[LIBRAW_WBI_Cloudy][0] = get2();
-          icWB[LIBRAW_WBI_Cloudy][2] = get2();
+          icWBC[LIBRAW_WBI_FL_W][0] = get2();
+          icWBC[LIBRAW_WBI_FL_W][2] = get2();
+          icWBC[LIBRAW_WBI_FL_N][0] = get2();
+          icWBC[LIBRAW_WBI_FL_N][2] = get2();
+          icWBC[LIBRAW_WBI_FL_D][0] = get2();
+          icWBC[LIBRAW_WBI_FL_D][2] = get2();
+          icWBC[LIBRAW_WBI_Cloudy][0] = get2();
+          icWBC[LIBRAW_WBI_Cloudy][2] = get2();
           fseek(ifp, 0x18L, SEEK_CUR);
-          icWB[LIBRAW_WBI_Flash][0] = get2();
-          icWB[LIBRAW_WBI_Flash][2] = get2();
+          icWBC[LIBRAW_WBI_Flash][0] = get2();
+          icWBC[LIBRAW_WBI_Flash][2] = get2();
 
-          icWB[LIBRAW_WBI_Auto][1] = icWB[LIBRAW_WBI_Auto][3] =
-              icWB[LIBRAW_WBI_Daylight][1] = icWB[LIBRAW_WBI_Daylight][3] =
-                  icWB[LIBRAW_WBI_Tungsten][1] = icWB[LIBRAW_WBI_Tungsten][3] =
-                      icWB[LIBRAW_WBI_FL_W][1] = icWB[LIBRAW_WBI_FL_W][3] =
-                          icWB[LIBRAW_WBI_FL_N][1] = icWB[LIBRAW_WBI_FL_N][3] =
-                              icWB[LIBRAW_WBI_FL_D][1] =
-                                  icWB[LIBRAW_WBI_FL_D][3] =
-                                      icWB[LIBRAW_WBI_Cloudy][1] =
-                                          icWB[LIBRAW_WBI_Cloudy][3] =
-                                              icWB[LIBRAW_WBI_Flash][1] =
-                                                  icWB[LIBRAW_WBI_Flash][3] =
-                                                      256;
+          icWBC[LIBRAW_WBI_Auto][1] = icWBC[LIBRAW_WBI_Auto][3] =
+            icWBC[LIBRAW_WBI_Daylight][1] = icWBC[LIBRAW_WBI_Daylight][3] =
+            icWBC[LIBRAW_WBI_Tungsten][1] = icWBC[LIBRAW_WBI_Tungsten][3] =
+            icWBC[LIBRAW_WBI_FL_W][1] = icWBC[LIBRAW_WBI_FL_W][3] =
+            icWBC[LIBRAW_WBI_FL_N][1] = icWBC[LIBRAW_WBI_FL_N][3] =
+            icWBC[LIBRAW_WBI_FL_D][1] = icWBC[LIBRAW_WBI_FL_D][3] =
+            icWBC[LIBRAW_WBI_Cloudy][1] = icWBC[LIBRAW_WBI_Cloudy][3] =
+            icWBC[LIBRAW_WBI_Flash][1] = icWBC[LIBRAW_WBI_Flash][3] = 256;
 
           if (strncmp(model, "E8700", 5))
           {
             fseek(ifp, 0x18L, SEEK_CUR);
-            icWB[LIBRAW_WBI_Shade][0] = get2();
-            icWB[LIBRAW_WBI_Shade][2] = get2();
-            icWB[LIBRAW_WBI_Shade][1] = icWB[LIBRAW_WBI_Shade][3] = 256;
+            icWBC[LIBRAW_WBI_Shade][0] = get2();
+            icWBC[LIBRAW_WBI_Shade][2] = get2();
+            icWBC[LIBRAW_WBI_Shade][1] = icWBC[LIBRAW_WBI_Shade][3] = 256;
           }
         }
         else if (len == 1280)
@@ -428,7 +479,7 @@ void LibRaw::parseNikonMakernote(int base, int uptag, unsigned dng_writer)
       if (len > 0)
       {
         int model_len = (int)strbuflen(model);
-        while ((c = fgetc(ifp)) && (len-- > 0) && (c != EOF))
+        while ((c = fgetc(ifp)) && (len-- > 0) && (c != (unsigned)EOF))
         {
           if ((!custom_serial) && (!isdigit(c)))
           {
@@ -450,7 +501,19 @@ void LibRaw::parseNikonMakernote(int base, int uptag, unsigned dng_writer)
           sprintf(imgdata.shootinginfo.BodySerial, "%d", serial);
       }
     }
-    else if (tag == 0x0025)
+    else if (tag == 0x001e) {
+      switch (get2()) {
+      case 1:
+        imCommon.ColorSpace = LIBRAW_COLORSPACE_sRGB;
+        break;
+      case 2:
+        imCommon.ColorSpace = LIBRAW_COLORSPACE_AdobeRGB;
+        break;
+      default:
+        imCommon.ColorSpace = LIBRAW_COLORSPACE_Unknown;
+        break;
+      }
+    } else if (tag == 0x0025)
     {
       if (!iso_speed || (iso_speed == 65535))
       {
@@ -468,7 +531,7 @@ void LibRaw::parseNikonMakernote(int base, int uptag, unsigned dng_writer)
     }
     else if (tag == 0x003d)
     { // not corrected for file bitcount, to be patched in open_datastream
-      FORC4 cblack[c ^ c >> 1] = get2();
+      FORC4 cblack[RGGB_2_RGBG(c)] = get2();
       i = cblack[3];
       FORC3 if (i > cblack[c]) i = cblack[c];
       FORC4 cblack[c] -= i;
@@ -528,11 +591,11 @@ void LibRaw::parseNikonMakernote(int base, int uptag, unsigned dng_writer)
       {
       case 100: // NIKON D100
         fseek(ifp, 0x44L, SEEK_CUR);
-        FORC4 cam_mul[(c >> 1) | ((c & 1) << 1)] = get2();
+        FORC4 cam_mul[RBGG_2_RGBG(c)] = get2();
         break;
       case 102: // NIKON D2H
         fseek(ifp, 0x6L, SEEK_CUR);
-        FORC4 cam_mul[c ^ (c >> 1)] = get2();
+        FORC4 cam_mul[RGGB_2_RGBG(c)] = get2();
         break;
       case 103: // NIKON D70, D70s
         fseek(ifp, 0x10L, SEEK_CUR);
@@ -664,6 +727,8 @@ void LibRaw::parseNikonMakernote(int base, int uptag, unsigned dng_writer)
       {
         if (imNikon.LensDataVersion > 200)
         {
+          cj = xlat[1][imNikon.key];
+          ck = 0x60;
           for (i = 0; i < LensData_len; i++)
           {
             LensData_buf[i] ^= (cj += ci * ck++);
@@ -692,7 +757,7 @@ void LibRaw::parseNikonMakernote(int base, int uptag, unsigned dng_writer)
       imNikon.AFFineTuneIndex = fgetc(ifp);
       imNikon.AFFineTuneAdj = (int8_t)fgetc(ifp);
     }
-    else if ((tag == 0x0100) && (type == 7))
+    else if ((tag == 0x0100) && tagtypeIs(LIBRAW_EXIFTAG_TYPE_UNDEFINED))
     {
       thumb_offset = ftell(ifp);
       thumb_length = len;
@@ -723,12 +788,12 @@ void LibRaw::parseNikonMakernote(int base, int uptag, unsigned dng_writer)
               double dbl;
               unsigned long long lng;
             } un;
-            un.dbl = getreal(12);
+            un.dbl = getreal(LIBRAW_EXIFTAG_TYPE_DOUBLE);
             if ((un.lng != 0x3FF0000000000000ULL) &&
                 (un.lng != 0x000000000000F03FULL))
             {
               cam_mul[0] = un.dbl;
-              cam_mul[2] = getreal(12);
+              cam_mul[2] = getreal(LIBRAW_EXIFTAG_TYPE_DOUBLE);
               cam_mul[1] = cam_mul[3] = 1.0;
               i -= 16;
             }
@@ -756,5 +821,4 @@ void LibRaw::parseNikonMakernote(int base, int uptag, unsigned dng_writer)
   }
 quit:
   order = sorder;
-#undef icWB
 }

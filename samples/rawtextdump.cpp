@@ -1,7 +1,7 @@
 /* -*- C++ -*-
  * File: raw2text.cpp
- * Copyright 2008-2019 LibRaw LLC (info@libraw.org)
- * Created: Sun Sept 01, 2019
+ * Copyright 2008-2020 LibRaw LLC (info@libraw.org)
+ * Created: Sun Sept 01, 2020
  *
  * LibRaw sample
  * Dumps (small) selection of RAW data to text file
@@ -44,7 +44,7 @@ void usage(const char *av)
 
 unsigned subtract_bl(unsigned int val, int bl)
 {
-	return val > bl ? val - bl : 0;
+	return val > (unsigned)bl ? val - (unsigned)bl : 0;
 }
 
 class LibRaw_bl : public LibRaw
@@ -112,7 +112,7 @@ int main(int ac, char *av[])
 			unsigned short *rowdata = &lr.imgdata.rawdata.raw_image[row * lr.imgdata.sizes.raw_pitch / 2];
 			printf("%6u", row);
 			for (int col = colstart; col < colstart + width && col < lr.imgdata.sizes.raw_width; col++)
-				if (rcolors[col % 48] == channel) printf("%6u", subtract_bl(rowdata[col],lr.imgdata.color.cblack[channel]));
+				if (rcolors[col % 48] == (unsigned)channel) printf("%6u", subtract_bl(rowdata[col],lr.imgdata.color.cblack[channel]));
 				else printf("     -");
 			printf("\n");
 		}

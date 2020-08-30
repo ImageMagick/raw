@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
  LibRaw is free software; you can redistribute it and/or modify
  it under the terms of the one of two licenses as you choose:
@@ -494,7 +494,7 @@ void LibRaw::convertFloatToInt(float dmin /* =4096.f */,
     imgdata.rawdata.color.black = imgdata.color.black =
         (float)imgdata.color.black * multip;
     for (int i = 0;
-         i < sizeof(imgdata.color.cblack) / sizeof(imgdata.color.cblack[0]);
+         i < int(sizeof(imgdata.color.cblack)/sizeof(imgdata.color.cblack[0]));
          i++)
       if (i != 4 && i != 5)
         imgdata.rawdata.color.cblack[i] = imgdata.color.cblack[i] =

@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -18,7 +18,7 @@
 
 #include "../../internal/dcraw_defs.h"
 
-#define radc_token(tree) ((signed char)getbithuff(8, huff[tree]))
+#define radc_token(tree) ((signed char)getbithuff(8, huff + (tree) * 256))
 
 #define FORYX                                                                  \
   for (y = 1; y < 3; y++)                                                      \
@@ -55,7 +55,8 @@ void LibRaw::kodak_radc_load_raw()
       3, -49, 3, -9,  3, 9,   4, 49,  5, -79, 5, 79,  2, -1,  2, 13,  2, 26,
       3, 39,  4, -16, 5, 55,  6, -37, 6, 76,  2, -26, 2, -13, 2, 1,   3, -39,
       4, 16,  5, -55, 6, -76, 6, 37};
-  ushort huff[19][256];
+  std::vector<ushort> huff_buffer(19 * 256);
+  ushort* huff = &huff_buffer[0];
   int row, col, tree, nreps, rep, step, i, c, s, r, x, y, val;
   short last[3] = {16, 16, 16}, mul[3], buf[3][3][386];
   static const ushort pt[] = {0,    0,    1280, 1344,  2320,  3616,
@@ -66,13 +67,13 @@ void LibRaw::kodak_radc_load_raw()
       curve[c] = (float)(c - pt[i - 2]) / (pt[i] - pt[i - 2]) *
                      (pt[i + 1] - pt[i - 1]) +
                  pt[i - 1] + 0.5;
-  for (s = i = 0; i < sizeof src; i += 2)
+  for (s = i = 0; i < int(sizeof src); i += 2)
     FORC(256 >> src[i])
   ((ushort *)huff)[s++] = src[i] << 8 | (uchar)src[i + 1];
   s = kodak_cbpp == 243 ? 2 : 3;
-  FORC(256) huff[18][c] = (8 - s) << 8 | c >> s << s | 1 << (s - 1);
+  FORC(256) huff[18 * 256 + c] = (8 - s) << 8 | c >> s << s | 1 << (s - 1);
   getbits(-1);
-  for (i = 0; i < sizeof(buf) / sizeof(short); i++)
+  for (i = 0; i < int(sizeof(buf) / sizeof(short)); i++)
     ((short *)buf)[i] = 2048;
   for (row = 0; row < height; row += 4)
   {
@@ -86,8 +87,8 @@ void LibRaw::kodak_radc_load_raw()
       s = val > 65564 ? 10 : 12;
       x = ~((~0u) << (s - 1));
       val <<= 12 - s;
-      for (i = 0; i < sizeof(buf[0]) / sizeof(short); i++)
-        ((short *)buf[c])[i] = (((short *)buf[c])[i] * val + x) >> s;
+      for (i = 0; i < int(sizeof(buf[0]) / sizeof(short)); i++)
+        ((short *)buf[c])[i] = MIN(0x7FFFFFFF, (((short *)buf[c])[i] * static_cast<long long>(val) + x)) >> s;
       last[c] = mul[c];
       for (r = 0; r <= !c; r++)
       {
@@ -431,7 +432,7 @@ int LibRaw::kodak_65000_decode(short *out, int bsize)
     diff = bitbuf & (0xffff >> (16 - len));
     bitbuf >>= len;
     bits -= len;
-    if ((diff & (1 << (len - 1))) == 0)
+    if (len > 0 && (diff & (1 << (len - 1))) == 0)
       diff -= (1 << len) - 1;
     out[i] = diff;
   }

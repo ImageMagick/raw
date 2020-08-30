@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
  LibRaw is free software; you can redistribute it and/or modify
  it under the terms of the one of two licenses as you choose:
@@ -21,6 +21,10 @@ void LibRaw::sony_arq_load_raw()
               imgdata.sizes.raw_width * imgdata.sizes.raw_height * 4);
   libraw_internal_data.internal_data.input->seek(
       -2, SEEK_CUR); // avoid wrong eof error
+
+  if(imgdata.params.raw_processing_options & LIBRAW_PROCESSING_ARQ_SKIP_CHANNEL_SWAP)
+    return;
+
   for (row = 0; row < imgdata.sizes.raw_height; row++)
   {
     unsigned short(*rowp)[4] =
@@ -64,8 +68,8 @@ void LibRaw::pentax_4shot_load_raw()
     if (imgdata.params.p4shot_order[i] >= '0' &&
         imgdata.params.p4shot_order[i] <= '3')
     {
-      move_row = (imgdata.params.p4shot_order[i] - '0' & 2) ? 1 : 0;
-      move_col = (imgdata.params.p4shot_order[i] - '0' & 1) ? 1 : 0;
+      move_row = ((imgdata.params.p4shot_order[i] - '0') & 2) ? 1 : 0;
+      move_col = ((imgdata.params.p4shot_order[i] - '0') & 1) ? 1 : 0;
     }
     else
     {
@@ -193,7 +197,7 @@ void LibRaw::nikon_14bit_load_raw()
         libraw_internal_data.internal_data.input->read(buf, 1, linelen);
     unsigned short *dest = &imgdata.rawdata.raw_image[pitch * row];
     // swab32arr((unsigned *)buf, bytesread / 4);
-    for (int sp = 0, dp = 0;
+    for (unsigned int sp = 0, dp = 0;
          dp < pitch - 3 && sp < linelen - 6 && sp < bytesread - 6;
          sp += 7, dp += 4)
       unpack7bytesto4x16_nikon(buf + sp, dest + dp);
@@ -216,13 +220,13 @@ void LibRaw::fuji_14bit_load_raw()
     if (bytesread % 28)
     {
       swab32arr((unsigned *)buf, bytesread / 4);
-      for (int sp = 0, dp = 0;
+      for (unsigned int sp = 0, dp = 0;
            dp < pitch - 3 && sp < linelen - 6 && sp < bytesread - 6;
            sp += 7, dp += 4)
         unpack7bytesto4x16(buf + sp, dest + dp);
     }
     else
-      for (int sp = 0, dp = 0;
+      for (unsigned int sp = 0, dp = 0;
            dp < pitch - 15 && sp < linelen - 27 && sp < bytesread - 27;
            sp += 28, dp += 16)
         unpack28bytesto16x16ns(buf + sp, dest + dp);
@@ -256,12 +260,11 @@ void LibRaw::nikon_load_padded_packed_raw() // 12 bit per pixel, padded to 16
 
 void LibRaw::nikon_load_striped_packed_raw()
 {
-  int vbits = 0, bwide, rbits, bite, row, col, val, i;
+  int vbits = 0, bwide, rbits, bite, row, col, i;
 
   UINT64 bitbuf = 0;
   unsigned load_flags = 24; // libraw_internal_data.unpacker_data.load_flags;
   unsigned tiff_bps = libraw_internal_data.unpacker_data.tiff_bps;
-  int tiff_compress = libraw_internal_data.unpacker_data.tiff_compress;
 
   struct tiff_ifd_t *ifd = &tiff_ifd[0];
   while (ifd < &tiff_ifd[libraw_internal_data.identify_data.tiff_nifds] &&

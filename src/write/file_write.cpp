@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -37,15 +37,15 @@ void LibRaw::tiff_set(struct tiff_hdr *th, ushort *ntag, ushort tag,
 
   tt = (struct libraw_tiff_tag *)(ntag + 1) + (*ntag)++;
   tt->val.i = val;
-  if (type == 1 && count <= 4)
+  if (tagtypeIs(LIBRAW_EXIFTAG_TYPE_BYTE) && count <= 4)
     FORC(4) tt->val.c[c] = val >> (c << 3);
-  else if (type == 2)
+  else if (tagtypeIs(LIBRAW_EXIFTAG_TYPE_ASCII))
   {
     count = strnlen((char *)th + val, count - 1) + 1;
     if (count <= 4)
       FORC(4) tt->val.c[c] = ((char *)th)[val + c];
   }
-  else if (type == 3 && count <= 2)
+  else if (tagtypeIs(LIBRAW_EXIFTAG_TYPE_SHORT) && count <= 2)
     FORC(2) tt->val.s[c] = val >> (c << 4);
   tt->count = count;
   tt->type = type;
@@ -120,11 +120,13 @@ void LibRaw::tiff_head(struct tiff_hdr *th, int full)
   tiff_set(th, &th->nexif, 37386, 5, 1, TOFF(th->rat[8]));
   if (gpsdata[1])
   {
+    uchar latref[2] = { (uchar)(gpsdata[29]),0 },
+          lonref[2] = { (uchar)(gpsdata[30]),0 };
     tiff_set(th, &th->ntag, 34853, 4, 1, TOFF(th->ngps));
     tiff_set(th, &th->ngps, 0, 1, 4, 0x202);
-    tiff_set(th, &th->ngps, 1, 2, 2, gpsdata[29]);
+    tiff_set(th, &th->ngps, 1, 2, 2, TOFF(latref));
     tiff_set(th, &th->ngps, 2, 5, 3, TOFF(th->gps[0]));
-    tiff_set(th, &th->ngps, 3, 2, 2, gpsdata[30]);
+    tiff_set(th, &th->ngps, 3, 2, 2, TOFF(lonref));
     tiff_set(th, &th->ngps, 4, 5, 3, TOFF(th->gps[6]));
     tiff_set(th, &th->ngps, 5, 1, 1, gpsdata[31]);
     tiff_set(th, &th->ngps, 6, 5, 1, TOFF(th->gps[18]));
@@ -225,7 +227,7 @@ void LibRaw::ppm_thumb()
 
 void LibRaw::ppm16_thumb()
 {
-  int i;
+  unsigned i;
   char *thumb;
   thumb_length = thumb_width * thumb_height * 3;
   thumb = (char *)calloc(thumb_length, 2);
@@ -240,7 +242,8 @@ void LibRaw::ppm16_thumb()
 
 void LibRaw::layer_thumb()
 {
-  int i, c;
+  unsigned int i;
+  int c;
   char *thumb, map[][4] = {"012", "102"};
 
   colors = thumb_misc >> 5 & 7;

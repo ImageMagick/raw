@@ -1,6 +1,6 @@
 /* -*- C++ -*-
  * File: libraw_internal_funcs.h
- * Copyright 2008-2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2008-2020 LibRaw LLC (info@libraw.org)
  * Created: Sat Mar  14, 2008
 
 LibRaw is free software; you can redistribute it and/or modify
@@ -29,17 +29,27 @@ it under the terms of the one of two licenses as you choose:
     static void removeExcessiveSpaces(char *string);
     static void trimSpaces(char *s);
 /* static tables/variables */
-    static const uchar xlat[2][256];
-    static const int Fuji_wb_list1[];
-    static const int nFuji_wb_list1;
-    static const int FujiCCT_K[31];
-    static const int Fuji_wb_list2[];
-    static const int nFuji_wb_list2;
-    static const int Pentax_wb_list1[];
-    static const int Pentax_wb_list2[];
-    static const int nPentax_wb_list2;
-    static const int Oly_wb_list1[];
-    static const int Oly_wb_list2[];
+    static libraw_static_table_t tagtype_dataunit_bytes;
+    static libraw_static_table_t Canon_wbi2std;
+    static libraw_static_table_t Canon_KeyIsZero_Len2048_linenums_2_StdWBi;
+    static libraw_static_table_t Canon_KeyIs0x0410_Len3072_linenums_2_StdWBi;
+    static libraw_static_table_t Canon_KeyIs0x0410_Len2048_linenums_2_StdWBi;
+    static libraw_static_table_t Canon_D30_linenums_2_StdWBi;
+    static libraw_static_table_t Canon_G9_linenums_2_StdWBi;
+
+    static libraw_static_table_t Fuji_wb_list1;
+    static libraw_static_table_t FujiCCT_K;
+    static libraw_static_table_t Fuji_wb_list2;
+
+    static libraw_static_table_t Pentax_wb_list1;
+    static libraw_static_table_t Pentax_wb_list2;
+
+    static libraw_static_table_t Oly_wb_list1;
+    static libraw_static_table_t Oly_wb_list2;
+
+    static libraw_static_table_t Sony_SRF_wb_list;
+    static libraw_static_table_t Sony_SR2_wb_list;
+    static libraw_static_table_t Sony_SR2_wb_list1;
 /*  */
     int     find_ifd_by_offset(int );
     ushort	sget2 (uchar *s);
@@ -57,6 +67,7 @@ it under the terms of the one of two licenses as you choose:
     void	Nikon_NRW_WBtag (int wb, int skip);
     void	parseNikonMakernote (int base, int uptag, unsigned dng_writer);
     void	parseEpsonMakernote (int base, int uptag, unsigned dng_writer);
+    void	parseSigmaMakernote (int base, int uptag, unsigned dng_writer);
     void	setOlympusBodyFeatures (unsigned long long id);
     void	getOlympus_CameraType2 ();
     void	getOlympus_SensorTemperature (unsigned len);
@@ -72,7 +83,7 @@ it under the terms of the one of two licenses as you choose:
     void	parseRicohMakernotes(int base, unsigned tag, unsigned type, unsigned len, unsigned dng_writer);
     void	parseSamsungMakernotes(int base, unsigned tag, unsigned type, unsigned len, unsigned dng_writer);
     void	setSonyBodyFeatures (unsigned long long id);
-    void    fixupArri();
+    void	fixupArri();
     void	parseSonyLensType2 (uchar a, uchar b);
     void	parseSonyLensFeatures (uchar a, uchar b);
     void	process_Sony_0x0116 (uchar * buf, ushort, unsigned long long id);
@@ -116,6 +127,7 @@ it under the terms of the one of two licenses as you choose:
     unsigned    getint (int type);
     float       int_to_float (int i);
     double      getreal (int type);
+    double      sgetreal(int type, uchar *s);
     void        read_shorts (ushort *pixel, unsigned count);
 
 /* Canon P&S cameras */
@@ -138,6 +150,7 @@ it under the terms of the one of two licenses as you choose:
     void        ljpeg_end(struct jhead *jh);
     int         ljpeg_diff (ushort *huff);
     ushort *    ljpeg_row (int jrow, struct jhead *jh);
+    ushort *    ljpeg_row_unrolled (int jrow, struct jhead *jh);
     void	    ljpeg_idct (struct jhead *jh);
     unsigned    ph1_bithuff (int nbits, ushort *huff);
 
@@ -265,6 +278,7 @@ it under the terms of the one of two licenses as you choose:
     void        samsung3_load_raw();
     void        parse_minolta (int base);
 
+#ifdef USE_X3FTOOLS
 // Foveon/Sigma
 // We always have x3f code compiled in!
     void        parse_x3f();
@@ -272,6 +286,17 @@ it under the terms of the one of two licenses as you choose:
     void        x3f_dpq_interpolate_rg();
 	void        x3f_dpq_interpolate_af(int xstep, int ystep, int scale); // 1x1 af pixels
 	void        x3f_dpq_interpolate_af_sd(int xstart,int ystart, int xend, int yend, int xstep, int ystep, int scale); // sd Quattro interpolation
+#else
+	void        parse_x3f() {}
+	void        x3f_load_raw(){}
+#endif
+#ifdef USE_6BY9RPI
+	void		rpi_load_raw8();
+	void		rpi_load_raw12();
+	void		rpi_load_raw14();
+	void		rpi_load_raw16();
+	void		parse_raspberrypi();
+#endif
 
 // CAM/RGB
     void        pseudoinverse (double (*in)[3], double (*out)[3], int size);
@@ -280,11 +305,15 @@ it under the terms of the one of two licenses as you choose:
 
 // Tiff/Exif parsers
     void        tiff_get (unsigned base,unsigned *tag, unsigned *type, unsigned *len, unsigned *save);
+    short       tiff_sget(unsigned save, uchar *buf, unsigned buf_len, INT64 *tag_offset,
+                          unsigned *tag_id, unsigned *tag_type, INT64 *tag_dataoffset,
+                          unsigned *tag_datalen, int *tag_dataunit_len);
     void        parse_thumb_note (int base, unsigned toff, unsigned tlen);
     void        parse_makernote (int base, int uptag);
     void        parse_makernote_0xc634(int base, int uptag, unsigned dng_writer);
     void        parse_exif (int base);
-    void        linear_table (unsigned len);
+	void        parse_exif_interop(int base);
+	void        linear_table(unsigned len);
     void        Kodak_DCR_WBtags(int wb, unsigned type, int wbi);
     void        Kodak_KDC_WBtags(int wb, int wbi);
     short       KodakIllumMatrix (unsigned type, float *romm_camIllum);
@@ -302,7 +331,10 @@ it under the terms of the one of two licenses as you choose:
 
 // The identify
     short       guess_byte_order (int words);
-
+	void		identify_process_dng_fields();
+	void		identify_finetune_pentax();
+	void		identify_finetune_by_filesize(int);
+	void		identify_finetune_dcr(char head[64],int,int);
 // Tiff writer
     void        tiff_set(struct tiff_hdr *th, ushort *ntag,ushort tag, ushort type, int count, int val);
     void        tiff_head (struct tiff_hdr *th, int full);

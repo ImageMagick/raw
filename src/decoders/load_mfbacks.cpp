@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -30,7 +30,7 @@ void LibRaw::phase_one_flat_field(int is_float, int nc)
   float *mrow, num, mult[4];
 
   read_shorts(head, 8);
-  if (head[2] * head[3] * head[4] * head[5] == 0)
+  if (head[2] == 0 || head[3] == 0 || head[4] == 0 || head[5] == 0)
     return;
   wide = head[2] / head[4] + (head[2] % head[4] != 0);
   high = head[3] / head[5] + (head[3] % head[5] != 0);
@@ -40,9 +40,9 @@ void LibRaw::phase_one_flat_field(int is_float, int nc)
   {
     checkCancel();
     for (x = 0; x < wide; x++)
-      for (c = 0; c < nc; c += 2)
+      for (c = 0; c < (unsigned)nc; c += 2)
       {
-        num = is_float ? getreal(11) : get2() / 32768.0;
+        num = is_float ? getreal(LIBRAW_EXIFTAG_TYPE_FLOAT) : get2() / 32768.0;
         if (y == 0)
           mrow[c * wide + x] = num;
         else
@@ -52,19 +52,19 @@ void LibRaw::phase_one_flat_field(int is_float, int nc)
       continue;
     rend = head[1] + y * head[5];
     for (row = rend - head[5];
-         row < raw_height && row < rend && row < head[1] + head[3] - head[5];
+         row < raw_height && row < rend && row < unsigned(head[1] + head[3] - head[5]);
          row++)
     {
       for (x = 1; x < wide; x++)
       {
-        for (c = 0; c < nc; c += 2)
+        for (c = 0; c < (unsigned)nc; c += 2)
         {
           mult[c] = mrow[c * wide + x - 1];
           mult[c + 1] = (mrow[c * wide + x] - mult[c]) / head[4];
         }
         cend = head[0] + x * head[4];
         for (col = cend - head[4];
-             col < raw_width && col < cend && col < head[0] + head[2] - head[4];
+             col < raw_width && col < cend && col < unsigned(head[0] + head[2] - head[4]);
              col++)
         {
           c = nc > 2 ? FC(row - top_margin, col - left_margin) : 0;
@@ -73,12 +73,12 @@ void LibRaw::phase_one_flat_field(int is_float, int nc)
             c = RAW(row, col) * mult[c];
             RAW(row, col) = LIM(c, 0, 65535);
           }
-          for (c = 0; c < nc; c += 2)
+          for (c = 0; c < (unsigned)nc; c += 2)
             mult[c] += mult[c + 1];
         }
       }
       for (x = 0; x < wide; x++)
-        for (c = 0; c < nc; c += 2)
+        for (c = 0; c < (unsigned)nc; c += 2)
           mrow[c * wide + x] += mrow[(c + 1) * wide + x];
     }
   }
@@ -119,7 +119,7 @@ int LibRaw::phase_one_correct()
       if (tag == 0x0419)
       { /* Polynomial curve */
         for (get4(), i = 0; i < 8; i++)
-          poly[i] = getreal(11);
+          poly[i] = getreal(LIBRAW_EXIFTAG_TYPE_FLOAT);
         poly[3] += (ph1.tag_210 - poly[7]) * poly[6] + 1;
         for (i = 0; i < 0x10000; i++)
         {
@@ -131,7 +131,7 @@ int LibRaw::phase_one_correct()
       else if (tag == 0x041a)
       { /* Polynomial curve */
         for (i = 0; i < 4; i++)
-          poly[i] = getreal(11);
+          poly[i] = getreal(LIBRAW_EXIFTAG_TYPE_FLOAT);
         for (i = 0; i < 0x10000; i++)
         {
           for (num = 0, j = 4; j--;)
@@ -243,11 +243,11 @@ int LibRaw::phase_one_correct()
             cubic_spline(cx, cf, 19);
 
             for (row = (qr ? ph1.split_row : 0);
-                 row < (qr ? raw_height : ph1.split_row); row++)
+                 row < unsigned(qr ? raw_height : ph1.split_row); row++)
             {
               checkCancel();
               for (col = (qc ? ph1.split_col : 0);
-                   col < (qc ? raw_width : ph1.split_col); col++)
+                   col < unsigned(qc ? raw_width : ph1.split_col); col++)
                 RAW(row, col) = curve[RAW(row, col)];
             }
           }
@@ -261,27 +261,27 @@ int LibRaw::phase_one_correct()
         get4();
         get4();
         get4();
-        qmult[0][0] = 1.0 + getreal(11);
+        qmult[0][0] = 1.0 + getreal(LIBRAW_EXIFTAG_TYPE_FLOAT);
         get4();
         get4();
         get4();
         get4();
         get4();
-        qmult[0][1] = 1.0 + getreal(11);
+        qmult[0][1] = 1.0 + getreal(LIBRAW_EXIFTAG_TYPE_FLOAT);
         get4();
         get4();
         get4();
-        qmult[1][0] = 1.0 + getreal(11);
+        qmult[1][0] = 1.0 + getreal(LIBRAW_EXIFTAG_TYPE_FLOAT);
         get4();
         get4();
         get4();
-        qmult[1][1] = 1.0 + getreal(11);
+        qmult[1][1] = 1.0 + getreal(LIBRAW_EXIFTAG_TYPE_FLOAT);
         for (row = 0; row < raw_height; row++)
         {
           checkCancel();
           for (col = 0; col < raw_width; col++)
           {
-            i = qmult[row >= ph1.split_row][col >= ph1.split_col] *
+            i = qmult[row >= (unsigned)ph1.split_row][col >= (unsigned)ph1.split_col] *
                 RAW(row, col);
             RAW(row, col) = LIM(i, 0, 65535);
           }
@@ -312,11 +312,11 @@ int LibRaw::phase_one_correct()
             cx[8] = cf[8] = 65535;
             cubic_spline(cx, cf, 9);
             for (row = (qr ? ph1.split_row : 0);
-                 row < (qr ? raw_height : ph1.split_row); row++)
+                 row < unsigned(qr ? raw_height : ph1.split_row); row++)
             {
               checkCancel();
               for (col = (qc ? ph1.split_col : 0);
-                   col < (qc ? raw_width : ph1.split_col); col++)
+                   col < unsigned(qc ? raw_width : ph1.split_col); col++)
                 RAW(row, col) = curve[RAW(row, col)];
             }
           }
@@ -339,7 +339,7 @@ int LibRaw::phase_one_correct()
       get2();
       for (i = 0; i < 2; i++)
         for (j = 0; j < head[i + 1] * head[i + 3]; j++)
-          yval[i][j] = getreal(11);
+          yval[i][j] = getreal(LIBRAW_EXIFTAG_TYPE_FLOAT);
       for (i = 0; i < 2; i++)
         for (j = 0; j < head[i + 1] * head[i + 3]; j++)
           xval[i][j] = get2();
@@ -540,7 +540,8 @@ void LibRaw::phase_one_load_raw_c()
 void LibRaw::hasselblad_load_raw()
 {
   struct jhead jh;
-  int shot, row, col, *back[5], len[2], diff[12], pred, sh, f, s, c;
+  int shot, row, col, *back[5], len[2], diff[12], pred, sh, f, c;
+  unsigned s;
   unsigned upix, urow, ucol;
   ushort *ip;
 
@@ -567,13 +568,13 @@ void LibRaw::hasselblad_load_raw()
           FORC(2)
           {
             diff[s + c] = ph1_bits(len[c]);
-            if ((diff[s + c] & (1 << (len[c] - 1))) == 0)
+            if (len[c] > 0 && (diff[s + c] & (1 << (len[c] - 1))) == 0)
               diff[s + c] -= (1 << len[c]) - 1;
             if (diff[s + c] == 65535)
               diff[s + c] = -32768;
           }
         }
-        for (s = col; s < col + 2; s++)
+        for (s = col; s < unsigned(col + 2); s++)
         {
           pred = 0x8000 + load_flags;
           if (col)
@@ -586,7 +587,7 @@ void LibRaw::hasselblad_load_raw()
               break;
             }
           f = (row & 1) * 3 ^ ((col + s) & 1);
-          FORC(tiff_samples)
+          FORC(int(tiff_samples))
           {
             pred += diff[(s & 1) * tiff_samples + c];
             upix = pred >> sh & 0xffff;

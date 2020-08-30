@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
 
  LibRaw is free software; you can redistribute it and/or modify
@@ -44,6 +44,8 @@ BSD-style License
 
 */
 
+#ifdef USE_X3FTOOLS
+
 #include "../../internal/libraw_cxx_defs.h"
 
 #if defined __sun && defined DS
@@ -77,7 +79,7 @@ static void utf2char(utf16_t *str, char *buffer, unsigned bufsz)
 
 static void *lr_memmem(const void *l, size_t l_len, const void *s, size_t s_len)
 {
-  register char *cur, *last;
+  char *cur, *last;
   const char *cl = (const char *)l;
   const char *cs = (const char *)s;
 
@@ -504,7 +506,7 @@ void LibRaw::x3f_dpq_interpolate_af_sd(int xstart, int ystart, int xend,
   unsigned int rowpitch =
       imgdata.rawdata.sizes.raw_pitch / 2; // in 16-bit words
   // Interpolate single pixel
-  for (int y = ystart; y < yend && y < imgdata.rawdata.sizes.height +
+  for (int y = ystart; y <= yend && y < imgdata.rawdata.sizes.height +
                                            imgdata.rawdata.sizes.top_margin;
        y += ystep)
   {
@@ -720,3 +722,4 @@ end:
   if (raise_error)
     throw LIBRAW_EXCEPTION_IO_CORRUPT;
 }
+#endif

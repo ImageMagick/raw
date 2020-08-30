@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
  LibRaw is free software; you can redistribute it and/or modify
  it under the terms of the one of two licenses as you choose:
@@ -31,6 +31,20 @@ libraw_processed_image_t *LibRaw::dcraw_make_mem_thumb(int *errcode)
         *errcode = LIBRAW_OUT_OF_ORDER_CALL;
     }
     return NULL;
+  }
+
+  if (T.tlength < 64u)
+  {
+      if (errcode)
+          *errcode = EINVAL;
+      return NULL;
+  }
+
+  if (INT64(T.tlength) > 1024ULL * 1024ULL * LIBRAW_MAX_THUMBNAIL_MB)
+  {
+      if (errcode)
+          *errcode = LIBRAW_TOO_BIG;
+      return NULL;
   }
 
   if (T.tformat == LIBRAW_THUMBNAIL_BITMAP)
@@ -119,15 +133,30 @@ void LibRaw::get_mem_image_format(int *width, int *height, int *colors,
                                   int *bps) const
 
 {
+  *width = S.width;
+  *height = S.height;
+  if (imgdata.progress_flags < LIBRAW_PROGRESS_FUJI_ROTATE)
+  {
+    if (O.use_fuji_rotate)
+    {
+      if (IO.fuji_width)
+      {
+        int fuji_width = (IO.fuji_width - 1 + IO.shrink) >> IO.shrink;
+        *width = (ushort)(fuji_width / sqrt(0.5));
+        *height = (ushort)((*height - fuji_width) / sqrt(0.5));
+      }
+      else
+      {
+        if (S.pixel_aspect < 0.995)
+          *height = (ushort)(*height / S.pixel_aspect + 0.5);
+        if (S.pixel_aspect > 1.005)
+          *width = (ushort)(*width * S.pixel_aspect + 0.5);
+      }
+    }
+  }
   if (S.flip & 4)
   {
-    *width = S.height;
-    *height = S.width;
-  }
-  else
-  {
-    *width = S.width;
-    *height = S.height;
+    std::swap(*width, *height);
   }
   *colors = P1.colors;
   *bps = O.output_bps;

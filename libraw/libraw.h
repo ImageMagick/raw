@@ -1,6 +1,6 @@
 /* -*- C++ -*-
  * File: libraw.h
- * Copyright 2008-2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2008-2020 LibRaw LLC (info@libraw.org)
  * Created: Sat Mar  8, 2008
  *
  * LibRaw C++ interface
@@ -35,41 +35,33 @@ it under the terms of the one of two licenses as you choose:
 
 /* better WIN32 defines */
 
-/* WIN32 defined: compatibility w/ old versions */
-#ifdef WIN32 /* old way: compatibility */
-#  ifndef LIBRAW_WIN32_UNICODEPATHS
-#   define LIBRAW_WIN32_UNICODEPATHS
-#  endif
-#  ifndef LIBRAW_WIN32_DLLDEFS
-#   define LIBRAW_WIN32_DLLDEFS
-#  endif
+/* better WIN32 defines */
+
+#if defined(WIN32) || defined(_WIN32)
+
+/* Win32 API */
 #  ifndef LIBRAW_WIN32_CALLS
 #   define LIBRAW_WIN32_CALLS
 #  endif
-#elif defined(_WIN32) && defined(_MSC_VER) /* MSVC, WIN32 is not defined */
-# if (_MSC_VER > 1310) /* MSVC 2003+ */
-#  ifndef LIBRAW_WIN32_UNICODEPATHS
-#   define LIBRAW_WIN32_UNICODEPATHS
-#  endif
-# endif
+
+/* DLLs: Microsoft or Intel compiler */
+# if defined(_MSC_VER) || defined(__INTEL_COMPILER)
 # ifndef LIBRAW_WIN32_DLLDEFS
 #  define LIBRAW_WIN32_DLLDEFS
 # endif
-# ifndef LIBRAW_WIN32_CALLS
-#  define LIBRAW_WIN32_CALLS
-# endif
-#else
-/* Windows, any not-MSVC compiler */
-# if defined(_WIN32) && !defined(WIN32) && !defined(_MSC_VER) /* any compiler but MSVC */
-#  ifndef LIBRAW_WIN32_CALLS
-#   define LIBRAW_WIN32_CALLS
-#  endif 
-#  ifndef LIBRAW_WIN32_UNICODEPATHS
-#   if _GLIBCXX_HAVE__WFOPEN && _GLIBCXX_USE_WCHAR_T
-#    define LIBRAW_WIN32_UNICODEPATHS
-#   endif
-#  endif
 #endif
+
+/* wchar_t* API for std::filebuf */
+# if (defined(_MSC_VER)  && (_MSC_VER > 1310)) || (defined(__INTEL_COMPILER) && (__INTEL_COMPILER >= 910))
+#  ifndef LIBRAW_WIN32_UNICODEPATHS
+#   define LIBRAW_WIN32_UNICODEPATHS
+#  endif
+# elif _GLIBCXX_HAVE__WFOPEN && _GLIBCXX_USE_WCHAR_T
+#  ifndef LIBRAW_WIN32_UNICODEPATHS
+#    define LIBRAW_WIN32_UNICODEPATHS
+#  endif
+# endif
+
 #endif
 
 #include "libraw_datastream.h"
@@ -155,7 +147,7 @@ extern "C"
   DllDef float libraw_get_pre_mul(libraw_data_t *lr, int index);
   DllDef float libraw_get_rgb_cam(libraw_data_t *lr, int index1, int index2);
   DllDef int libraw_get_color_maximum(libraw_data_t *lr);
-
+  DllDef void libraw_set_output_tif(libraw_data_t *lr, int value);
   DllDef libraw_iparams_t *libraw_get_iparams(libraw_data_t *lr);
   DllDef libraw_lensinfo_t *libraw_get_lensinfo(libraw_data_t *lr);
   DllDef libraw_imgother_t *libraw_get_imgother(libraw_data_t *lr);
@@ -334,7 +326,7 @@ protected:
   virtual void copy_bayer(unsigned short cblack[4], unsigned short *dmaxp);
   virtual void fuji_rotate();
   virtual void convert_to_rgb_loop(float out_cam[3][4]);
-  virtual void lin_interpolate_loop(int code[16][16][32], int size);
+  virtual void lin_interpolate_loop(int *code, int size);
   virtual void scale_colors_loop(float scale_mul[4]);
 
   /* Fujifilm compressed decoder public interface (to make parallel decoder) */
@@ -390,8 +382,10 @@ protected:
 
   void kodak_thumb_loader();
   void write_thumb_ppm_tiff(FILE *);
+#ifdef USE_X3FTOOLS
   void x3f_thumb_loader();
   INT64 x3f_thumb_size();
+#endif
 
   int own_filtering_supported() { return 0; }
   void identify();
@@ -461,7 +455,7 @@ protected:
   int valid_for_dngsdk();
   int try_dngsdk();
   /* X3F data */
-  void *_x3f_data;
+  void *_x3f_data; /* keep it even if USE_X3FTOOLS is not defined to do not change sizeof(LibRaw)*/
 
   int raw_was_read()
   {

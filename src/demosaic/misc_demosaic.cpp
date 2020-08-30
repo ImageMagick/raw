@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -86,7 +86,7 @@ void LibRaw::border_interpolate(int border)
   for (row = 0; row < height; row++)
     for (col = 0; col < width; col++)
     {
-      if (col == border && row >= border && row < height - border)
+      if (col == (unsigned)border && row >= (unsigned)border && row < (unsigned)(height - border))
         col = width - border;
       memset(sum, 0, sizeof sum);
       for (y = row - 1; y != row + 2; y++)
@@ -98,12 +98,12 @@ void LibRaw::border_interpolate(int border)
             sum[f + 4]++;
           }
       f = fcol(row, col);
-      FORCC if (c != f && sum[c + 4]) image[row * width + col][c] =
+      FORC(unsigned(colors)) if (c != f && sum[c + 4]) image[row * width + col][c] =
           sum[c] / sum[c + 4];
     }
 }
 
-void LibRaw::lin_interpolate_loop(int code[16][16][32], int size)
+void LibRaw::lin_interpolate_loop(int *code, int size)
 {
   int row;
   for (row = 1; row < height - 1; row++)
@@ -115,7 +115,7 @@ void LibRaw::lin_interpolate_loop(int code[16][16][32], int size)
       int i;
       int sum[4];
       pix = image[row * width + col];
-      ip = code[row % size][col % size];
+      ip = code + ((((row % size) * 16) + (col % size)) * 32);
       memset(sum, 0, sizeof sum);
       for (i = *ip++; i--; ip += 3)
         sum[ip[2]] += pix[ip[0]] << ip[1];
@@ -127,7 +127,8 @@ void LibRaw::lin_interpolate_loop(int code[16][16][32], int size)
 
 void LibRaw::lin_interpolate()
 {
-  int code[16][16][32], size = 16, *ip, sum[4];
+  std::vector<int> code_buffer(16 * 16 * 32);
+  int* code = &code_buffer[0], size = 16, *ip, sum[4];
   int f, c, x, y, row, col, shift, color;
 
   RUN_CALLBACK(LIBRAW_PROGRESS_INTERPOLATE, 0, 3);
@@ -138,14 +139,14 @@ void LibRaw::lin_interpolate()
   for (row = 0; row < size; row++)
     for (col = 0; col < size; col++)
     {
-      ip = code[row][col] + 1;
+      ip = code + (((row * 16) + col) * 32) + 1;
       f = fcol(row, col);
       memset(sum, 0, sizeof sum);
       for (y = -1; y <= 1; y++)
         for (x = -1; x <= 1; x++)
         {
           shift = (y == 0) + (x == 0);
-          color = fcol(row + y, col + x);
+          color = fcol(row + y + 48, col + x + 48);
           if (color == f)
             continue;
           *ip++ = (width * y + x) * 4 + color;
@@ -153,7 +154,7 @@ void LibRaw::lin_interpolate()
           *ip++ = color;
           sum[color] += 1 << shift;
         }
-      code[row][col][0] = (ip - code[row][col]) / 3;
+      code[(row * 16 + col) * 32] = (ip - (code + ((row * 16) + col) * 32)) / 3;
       FORCC
       if (c != f)
       {
@@ -233,8 +234,8 @@ void LibRaw::vng_interpolate()
         x2 = *cp++;
         weight = *cp++;
         grads = *cp++;
-        color = fcol(row + y1, col + x1);
-        if (fcol(row + y2, col + x2) != color)
+        color = fcol(row + y1 + 144, col + x1 + 144);
+        if (fcol(row + y2 + 144, col + x2 + 144) != color)
           continue;
         diag = (fcol(row, col + 1) == color && fcol(row + 1, col) == color) ? 2
                                                                             : 1;
@@ -255,8 +256,8 @@ void LibRaw::vng_interpolate()
         x = *cp++;
         *ip++ = (y * width + x) * 4;
         color = fcol(row, col);
-        if (fcol(row + y, col + x) != color &&
-            fcol(row + y * 2, col + x * 2) == color)
+        if (fcol(row + y + 144, col + x + 144) != color &&
+            fcol(row + y * 2 + 144, col + x * 2 + 144) == color)
           *ip++ = (y * width + x) * 8 + color;
         else
           *ip++ = 0;
@@ -360,8 +361,9 @@ void LibRaw::ppg_interpolate()
          col += 2)
     {
       pix = image + row * width + col;
-      for (i = 0; (d = dir[i]) > 0; i++)
+      for (i = 0; i < 2; i++)
       {
+        d = dir[i];
         guess[i] = (pix[-d][1] + pix[0][c] + pix[d][1]) * 2 - pix[-2 * d][c] -
                    pix[2 * d][c];
         diff[i] =
@@ -386,10 +388,13 @@ void LibRaw::ppg_interpolate()
          col += 2)
     {
       pix = image + row * width + col;
-      for (i = 0; (d = dir[i]) > 0; c = 2 - c, i++)
+      for (i = 0; i < 2; c = 2 - c, i++)
+      {
+        d = dir[i];
         pix[0][c] = CLIP(
             (pix[-d][c] + pix[d][c] + 2 * pix[0][1] - pix[-d][1] - pix[d][1]) >>
             1);
+      }
     }
   /*  Calculate blue for red pixels and vice versa:		*/
   RUN_CALLBACK(LIBRAW_PROGRESS_INTERPOLATE, 2, 3);
@@ -402,8 +407,9 @@ void LibRaw::ppg_interpolate()
          col += 2)
     {
       pix = image + row * width + col;
-      for (i = 0; (d = dir[i] + dir[i + 1]) > 0; i++)
+      for (i = 0; i < 2; i++)
       {
+        d = dir[i] + dir[i+1];
         diff[i] = ABS(pix[-d][c] - pix[d][c]) + ABS(pix[-d][1] - pix[0][1]) +
                   ABS(pix[d][1] - pix[0][1]);
         guess[i] =

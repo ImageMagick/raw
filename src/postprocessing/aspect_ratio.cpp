@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -42,7 +42,7 @@ void LibRaw::fuji_rotate()
     {
       ur = r = fuji_width + (row - col) * step;
       uc = c = (row + col) * step;
-      if (ur > height - 2 || uc > width - 2)
+      if (ur > (unsigned)height - 2 || uc > (unsigned)width - 2)
         continue;
       fr = r - ur;
       fc = c - uc;

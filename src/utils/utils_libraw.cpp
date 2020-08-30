@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
 
  LibRaw is free software; you can redistribute it and/or modify
@@ -85,7 +85,7 @@ unsigned LibRaw::parse_custom_cameras(unsigned limit,
   if (!list)
     return 0;
   unsigned index = 0;
-  for (int i = 0; i < limit; i++)
+  for (unsigned i = 0; i < limit; i++)
   {
     if (!list[i])
       break;
@@ -205,6 +205,12 @@ unsigned LibRaw::capabilities()
 #ifdef LIBRAW_WIN32_UNICODEPATHS
   ret |= LIBRAW_CAPS_UNICODEPATHS;
 #endif
+#endif
+#ifdef USE_X3FTOOLS
+  ret |= LIBRAW_CAPS_X3FTOOLS;
+#endif
+#ifdef USE_6BY9RPI
+  ret |= LIBRAW_CAPS_RPI6BY9;
 #endif
   return ret;
 }
@@ -507,7 +513,7 @@ void LibRaw::adjust_bl()
   int i = C.cblack[3];
   int c;
   for (c = 0; c < 3; c++)
-    if (i > C.cblack[c])
+    if (i > (int)C.cblack[c])
       i = C.cblack[c];
 
   for (c = 0; c < 4; c++)
@@ -519,12 +525,12 @@ void LibRaw::adjust_bl()
   if (C.cblack[4] && C.cblack[5])
   {
     i = C.cblack[6];
-    for (c = 1; c < C.cblack[4] * C.cblack[5]; c++)
-      if (i > C.cblack[6 + c])
+    for (c = 1; c < int(C.cblack[4] * C.cblack[5]); c++)
+      if (i > int(C.cblack[6 + c]))
         i = C.cblack[6 + c];
     // Remove i from cblack[6+]
     int nonz = 0;
-    for (c = 0; c < C.cblack[4] * C.cblack[5]; c++)
+    for (c = 0; c < int(C.cblack[4] * C.cblack[5]); c++)
     {
       C.cblack[6 + c] -= i;
       if (C.cblack[6 + c])
@@ -573,8 +579,29 @@ int LibRaw::stread(char *buf, size_t len, LibRaw_abstract_datastream *fp)
 
 int LibRaw::find_ifd_by_offset(int o)
 {
-    for(int i = 0; i < libraw_internal_data.identify_data.tiff_nifds && i < LIBRAW_IFD_MAXCOUNT; i++)
+    for(unsigned i = 0; i < libraw_internal_data.identify_data.tiff_nifds && i < LIBRAW_IFD_MAXCOUNT; i++)
         if(tiff_ifd[i].offset == o)
             return i;
     return -1;
+}
+
+short LibRaw::tiff_sget (unsigned save, uchar *buf, unsigned buf_len, INT64 *tag_offset,
+                         unsigned *tag_id, unsigned *tag_type, INT64 *tag_dataoffset,
+                         unsigned *tag_datalen, int *tag_dataunitlen) {
+  uchar *pos = buf + *tag_offset;
+  if ((((*tag_offset) + 12) > buf_len) || (*tag_offset < 0)) { // abnormal, tag buffer overrun
+    return -1;
+  }
+  *tag_id      = sget2(pos); pos += 2;
+  *tag_type    = sget2(pos); pos += 2;
+  *tag_datalen = sget4(pos); pos += 4;
+  *tag_dataunitlen = tagtype_dataunit_bytes[(*tag_type <= LIBRAW_EXIFTAG_TYPE_IFD8) ? *tag_type : 0];
+  if ((*tag_datalen * (*tag_dataunitlen)) > 4) {
+    *tag_dataoffset = sget4(pos) - save;
+    if ((*tag_dataoffset + *tag_datalen) > buf_len) { // abnormal, tag data buffer overrun
+      return -2;
+    }
+  } else *tag_dataoffset = *tag_offset + 8;
+  *tag_offset += 12;
+  return 0;
 }

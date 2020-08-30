@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
 
  LibRaw is free software; you can redistribute it and/or modify
@@ -14,7 +14,7 @@
  */
 
 #include "../../internal/dcraw_defs.h"
-#include "../../internal/libraw_const.h"
+#include "../../internal/libraw_cameraids.h"
 
   static const struct {
     const int idx;
@@ -31,8 +31,8 @@
 
 const char* LibRaw::HassyRawFormat_idx2HR(unsigned idx) // HR means "human-readable"
 {
-    for (int i = 0; i < sizeof HassyRawFormat / sizeof *HassyRawFormat; i++)
-        if(HassyRawFormat[i].idx == idx)
+    for (int i = 0; i < int(sizeof HassyRawFormat / sizeof *HassyRawFormat); i++)
+        if((unsigned)HassyRawFormat[i].idx == idx)
             return HassyRawFormat[i].FormatName;
     return 0;
 }
@@ -134,7 +134,7 @@ static const char *Hasselblad_SensorEnclosures[] = {
 
 // check if model tag contains manual CaptureSequenceInitiator info:
   strcpy(imHassy.CaptureSequenceInitiator, model);
-  FORC(sizeof Hasselblad_Ctrl / sizeof *Hasselblad_Ctrl) {
+  FORC(int(sizeof Hasselblad_Ctrl / sizeof *Hasselblad_Ctrl)) {
     if (strcasestr(model, Hasselblad_Ctrl[c])) {
 // yes, fill 'model' with sensor unit data
       strcpy(model, tmp_model);
@@ -169,7 +169,7 @@ static const char *Hasselblad_SensorEnclosures[] = {
     strcpy(model, "CFV");
     ilm.CameraMount = LIBRAW_MOUNT_DigitalBack;
   } else {
-    FORC(sizeof Hasselblad_SensorEnclosures / sizeof *Hasselblad_SensorEnclosures) {
+    FORC(int(sizeof Hasselblad_SensorEnclosures / sizeof *Hasselblad_SensorEnclosures)) {
       if (strcasestr(model, Hasselblad_SensorEnclosures[c])) {
         if (add_MP_toName) strcpy(model, Hasselblad_SensorEnclosures[c]);
         ilm.CameraMount = LIBRAW_MOUNT_DigitalBack;
@@ -223,7 +223,9 @@ static const char *Hasselblad_SensorEnclosures[] = {
 
   } else if ((imHassy.SensorCode == 11) &&
              (imHassy.CoatingCode == 4)) {
-    strcpy(imHassy.Sensor, "-50");
+    if (!strncmp(model, "H3D", 3))
+      strcpy(model, "H3DII-50");
+    else strcpy(imHassy.Sensor, "-50");
     cpynorm("50-Coated");
 
   } else if ((imHassy.SensorCode == 11) &&

@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -21,7 +21,7 @@
 void LibRaw::unpacked_load_raw()
 {
   int row, col, bits = 0;
-  while (1 << ++bits < maximum)
+  while (1 << ++bits < (int)maximum)
     ;
   read_shorts(raw_image, raw_width * raw_height);
   fseek(ifp, -2, SEEK_CUR); // avoid EOF error
@@ -72,7 +72,7 @@ void LibRaw::packed_load_raw()
       {
         bitbuf <<= bite;
         for (i = 0; i < bite; i += 8)
-          bitbuf |= (unsigned)(fgetc(ifp) << i);
+          bitbuf |= (unsigned(fgetc(ifp)) << i);
       }
       val = bitbuf << (64 - tiff_bps - vbits) >> (64 - tiff_bps);
       RAW(row, col ^ (load_flags >> 6 & 1)) = val;

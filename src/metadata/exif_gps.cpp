@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -17,6 +17,42 @@
  */
 
 #include "../../internal/dcraw_defs.h"
+#include "../../internal/libraw_cameraids.h"
+
+void LibRaw::parse_exif_interop(int base)
+{
+	unsigned entries, tag, type, len, save;
+	char value[4] = { 0,0,0,0 };
+	entries = get2();
+	INT64 fsize = ifp->size();
+	while (entries--)
+	{
+		tiff_get(base, &tag, &type, &len, &save);
+
+		INT64 savepos = ftell(ifp);
+		if (len > 8 && savepos + len > fsize * 2)
+		{
+			fseek(ifp, save, SEEK_SET); // Recover tiff-read position!!
+			continue;
+		}
+
+		switch (tag)
+		{
+		case 0x0001: // InteropIndex
+			fread(value, 1, MIN(4, len), ifp);
+			if (strncmp(value, "R98", 3) == 0 &&
+				// Canon bug, when [Canon].ColorSpace = AdobeRGB,
+				// but [ExifIFD].ColorSpace = Uncalibrated and
+				// [InteropIFD].InteropIndex = "R98"
+				imgdata.color.ExifColorSpace == LIBRAW_COLORSPACE_Unknown)
+				imgdata.color.ExifColorSpace = LIBRAW_COLORSPACE_sRGB;
+			else if (strncmp(value, "R03", 3) == 0)
+				imgdata.color.ExifColorSpace = LIBRAW_COLORSPACE_AdobeRGB;
+			break;
+		}
+		fseek(ifp, save, SEEK_SET);
+	}
+}
 
 void LibRaw::parse_exif(int base)
 {
@@ -48,29 +84,39 @@ void LibRaw::parse_exif(int base)
 
     switch (tag)
     {
-
+	case 0xA005: // Interoperability IFD
+		fseek(ifp, get4() + base, SEEK_SET);
+		parse_exif_interop(base);
+		break;
+	case 0xA001: // ExifIFD.ColorSpace
+		c = get2();
+		if (c == 1 && imgdata.color.ExifColorSpace == LIBRAW_COLORSPACE_Unknown)
+			imgdata.color.ExifColorSpace = LIBRAW_COLORSPACE_sRGB;
+		else if (c == 2)
+			imgdata.color.ExifColorSpace = LIBRAW_COLORSPACE_AdobeRGB;
+		break;
     case 0x9400:
-      imgdata.makernotes.common.exifAmbientTemperature = getreal(type);
-      if ((imgdata.makernotes.common.CameraTemperature > -273.15f) &&
-          ((OlyID == 0x4434353933ULL) || // TG-5
-           (OlyID == 0x4434363033ULL))   // TG-6
+      imCommon.exifAmbientTemperature = getreal(type);
+      if ((imCommon.CameraTemperature > -273.15f) &&
+          ((OlyID == OlyID_TG_5) ||
+           (OlyID == OlyID_TG_6))
       )
-        imgdata.makernotes.common.CameraTemperature += imgdata.makernotes.common.exifAmbientTemperature;
+        imCommon.CameraTemperature += imCommon.exifAmbientTemperature;
       break;
     case 0x9401:
-      imgdata.makernotes.common.exifHumidity = getreal(type);
+      imCommon.exifHumidity = getreal(type);
       break;
     case 0x9402:
-      imgdata.makernotes.common.exifPressure = getreal(type);
+      imCommon.exifPressure = getreal(type);
       break;
     case 0x9403:
-      imgdata.makernotes.common.exifWaterDepth = getreal(type);
+      imCommon.exifWaterDepth = getreal(type);
       break;
     case 0x9404:
-      imgdata.makernotes.common.exifAcceleration = getreal(type);
+      imCommon.exifAcceleration = getreal(type);
       break;
     case 0x9405:
-      imgdata.makernotes.common.exifCameraElevationAngle = getreal(type);
+      imCommon.exifCameraElevationAngle = getreal(type);
       break;
 
     case 0xa405: // FocalLengthIn35mmFormat
@@ -118,7 +164,9 @@ void LibRaw::parse_exif(int base)
       imgdata.lens.EXIF_MaxAp = libraw_powf64l(2.0f, (getreal(type) / 2.0f));
       break;
     case 0x829a: // 33434
-      tiff_ifd[tiff_nifds - 1].t_shutter = shutter = getreal(type);
+      shutter = getreal(type);
+      if (tiff_nifds > 0 && tiff_nifds <= LIBRAW_IFD_MAXCOUNT)
+          tiff_ifd[tiff_nifds - 1].t_shutter = shutter;
       break;
     case 0x829d: // 33437, FNumber
       aperture = getreal(type);
@@ -140,9 +188,12 @@ void LibRaw::parse_exif(int base)
       get_timestamp(0);
       break;
     case 0x9201: // 37377
-      if ((expo = -getreal(type)) < 128 && shutter == 0.)
-        tiff_ifd[tiff_nifds - 1].t_shutter = shutter =
-            libraw_powf64l(2.0, expo);
+       if ((expo = -getreal(type)) < 128 && shutter == 0.)
+       {
+            shutter = libraw_powf64l(2.0, expo);
+            if (tiff_nifds > 0 && tiff_nifds <= LIBRAW_IFD_MAXCOUNT)
+              tiff_ifd[tiff_nifds - 1].t_shutter = shutter;
+       }
       break;
     case 0x9202: // 37378 ApertureValue
       if ((fabs(ape = getreal(type)) < 256.0) && (!aperture))
@@ -288,7 +339,7 @@ void LibRaw::parse_gps_libraw(int base)
       break;
     case 0x0004:
       if (len == 3)
-        FORC(3) imgdata.other.parsed_gps.longtitude[c] = getreal(type);
+        FORC(3) imgdata.other.parsed_gps.longitude[c] = getreal(type);
       break;
     case 0x0007:
       if (len == 3)

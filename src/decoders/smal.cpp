@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -27,7 +27,8 @@ void LibRaw::smal_decode_segment(unsigned seg[2][2], int holes)
                        {7, 7, 0, 0, 63, 55, 47, 39, 31, 23, 15, 7, 0},
                        {3, 3, 0, 0, 63, 47, 31, 15, 0}};
   int low, high = 0xff, carry = 0, nbits = 8;
-  int pix, s, count, bin, next, i, sym[3];
+  int s, count, bin, next, i, sym[3];
+  unsigned pix;
   uchar diff, pred[] = {0, 0};
   ushort data = 0, range = 0;
 

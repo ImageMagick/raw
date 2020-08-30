@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -48,7 +48,7 @@ void LibRaw::xtrans_interpolate(int passes)
                                        /* Check against right pattern */
   for (row = 0; row < 6; row++)
     for (col = 0; col < 6; col++)
-      cstat[fcol(row, col)]++;
+      cstat[(unsigned)fcol(row, col)]++;
 
   if (cstat[0] < 6 || cstat[0] > 10 || cstat[1] < 16 || cstat[1] > 24 ||
       cstat[2] < 6 || cstat[2] > 10 || cstat[3])
@@ -151,6 +151,24 @@ void LibRaw::xtrans_interpolate(int passes)
       }
     }
 
+  for (row = 3; row < 9 && row < height - 3; row++)
+	  for (col = 3; col < 9 && col < width - 3; col++)
+	  {
+		  if ((f = fcol(row, col)) == 1)
+			  continue;
+		  hex = allhex[row % 3][col % 3][0];
+		  FORC(2)
+		  {
+			  int idx3 = 3 * hex[4 + c] + row * width + col;
+			  int idx4 = -3 * hex[4 + c] + row * width + col;
+			  int maxidx = width * height;
+			  if (idx3 < 0 || idx3 >= maxidx)
+				  throw LIBRAW_EXCEPTION_IO_CORRUPT;
+			  if (idx4 < 0 || idx4 >= maxidx)
+				  throw LIBRAW_EXCEPTION_IO_CORRUPT;
+		  }
+	  }
+
   for (top = 3; top < height - 19; top += LIBRAW_AHD_TILE - 16)
     for (left = 3; left < width - 19; left += LIBRAW_AHD_TILE - 16)
     {
@@ -224,9 +242,8 @@ void LibRaw::xtrans_interpolate(int passes)
                 g = 2 * rix[0][1] - rix[i << c][1] - rix[-i << c][1];
                 color[h][d] = g + rix[i << c][h] + rix[-i << c][h];
                 if (d > 1)
-                  diff[d] += SQR(rix[i << c][1] - rix[-i << c][1] -
-                                 rix[i << c][h] + rix[-i << c][h]) +
-                             SQR(g);
+                  diff[d] += SQR((float)rix[i << c][1] - (float)rix[-i << c][1] -
+                  (float)rix[i << c][h] + (float)rix[-i << c][h]) + SQR((float)g);
               }
               if (d > 1 && (d & 1))
                 if (diff[d - 1] < diff[d])

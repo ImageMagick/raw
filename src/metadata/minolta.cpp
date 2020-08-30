@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -40,7 +40,7 @@ void LibRaw::parse_minolta(int base)
     len = get4();
     if (len < 0)
       return; // just ignore wrong len?? or raise bad file exception?
-    if ((INT64)len + save + 8ULL > fsize)
+    if ((INT64)len + save + 8LL > fsize)
       return; // just ignore out of file metadata, stop parse
     switch (tag)
     {
@@ -56,7 +56,6 @@ void LibRaw::parse_minolta(int base)
       fseek(ifp, 4L, SEEK_CUR);
       imSony.prd_BayerPattern = (ushort)fgetc(ifp);
       break;
-#define icWBC imgdata.color.WB_Coeffs
     case 0x524946: /* RIF */
       if (!strncasecmp(model, "DSLR-A100", 9))
       {
@@ -96,7 +95,6 @@ void LibRaw::parse_minolta(int base)
                                                         0x100;
       }
       break;
-#undef icWBC
     case 0x574247: /* WBG */
       get4();
       i = strcmp(model, "DiMAGE A200") ? 0 : 3;

@@ -1,6 +1,6 @@
 /* -*- C++ -*-
  * File: libraw_c_api.cpp
- * Copyright 2008-2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2008-2020 LibRaw LLC (info@libraw.org)
  * Created: Sat Mar  8 , 2008
  *
  * LibRaw C interface
@@ -34,7 +34,7 @@ extern "C"
     {
       ret = new LibRaw(flags);
     }
-    catch (std::bad_alloc)
+    catch (const std::bad_alloc& )
     {
       return NULL;
     }
@@ -308,6 +308,14 @@ extern "C"
       return;
     LibRaw *ip = (LibRaw *)lr->parent_class;
     ip->imgdata.params.output_bps = value;
+  }
+
+  	DllDef void libraw_set_output_tif(libraw_data_t *lr, int value)
+  {
+    if (!lr)
+      return;
+    LibRaw *ip = (LibRaw *)lr->parent_class;
+    ip->imgdata.params.output_tiff = value;
   }
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))

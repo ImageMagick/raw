@@ -1,6 +1,6 @@
 /* -*- C++ -*-
  * File: libraw_types.h
- * Copyright 2008-2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2008-2020 LibRaw LLC (info@libraw.org)
  * Created: Sat Mar  8 , 2008
  *
  * LibRaw C data structures
@@ -100,7 +100,7 @@ typedef unsigned long long UINT64;
   typedef unsigned short ushort;
 
 #ifdef LIBRAW_WIN32_DLLDEFS
-#if defined(LIBRAW_NODLL) || defined(_LIB)
+#ifdef LIBRAW_NODLL
 #define DllDef
 #else
 #ifdef LIBRAW_BUILDLIB
@@ -315,8 +315,11 @@ typedef unsigned long long UINT64;
     int   AFMicroAdjMode;
     float AFMicroAdjValue;
     short MakernotesFlip;
+    short RecordMode;
     short SRAWQuality;
     unsigned wbi;
+    float firmware;
+    short RF_lensID;
   } libraw_canon_makernotes_t;
 
   typedef struct
@@ -368,6 +371,9 @@ typedef unsigned long long UINT64;
     ushort DynamicRangeSetting;
     ushort DevelopmentDynamicRange;
     ushort AutoDynamicRange;
+    ushort DRangePriority;
+    ushort DRangePriorityAuto;
+    ushort DRangePriorityFixed;
 
     /*
     tag 0x9200, converted to BrightnessCompensation
@@ -690,6 +696,7 @@ typedef unsigned long long UINT64;
                       7    Never seen
                       8    Name unknown
                       */
+	int ExifColorSpace;
   } libraw_colordata_t;
 
   typedef struct
@@ -704,7 +711,7 @@ typedef unsigned long long UINT64;
   typedef struct
   {
     float latitude[3];     /* Deg,min,sec */
-    float longtitude[3];   /* Deg,min,sec */
+    float longitude[3];    /* Deg,min,sec */
     float gpstimestamp[3]; /* Deg,min,sec */
     float altitude;
     char  altref, latref, longref, gpsstatus;
@@ -742,6 +749,8 @@ typedef unsigned long long UINT64;
     float exifCameraElevationAngle;
     float real_ISO;
     float exifExposureIndex;
+    ushort ColorSpace;
+    char firmware[128];
   } libraw_metadata_common_t;
 
   typedef struct
@@ -958,6 +967,35 @@ typedef unsigned long long UINT64;
 #ifdef __cplusplus
 }
 #endif
+
+#if defined (LIBRAW_LIBRARY_BUILD) && defined(__cplusplus)
+
+class libraw_static_table_t
+{
+public:
+    libraw_static_table_t(const int *a, const unsigned s): data(a),_size(s) {}
+    libraw_static_table_t(): data(0),_size(0){}
+    libraw_static_table_t(const libraw_static_table_t& s) : data(s.data), _size(s._size) {}
+    unsigned size() const { return _size; }
+    libraw_static_table_t& operator = (const libraw_static_table_t& s)
+    {
+        _size = s._size;
+        data = s.data;
+        return *this;
+    }
+    int operator [] (unsigned idx) const
+    {
+        if (idx < _size) return data[idx];
+        if(_size>0 && data) return data[0];
+        return 0;
+    }
+private:
+    const int *data;
+    unsigned _size;
+};
+
+#endif
+
 
 /* Byte order */
 #if defined(__POWERPC__)

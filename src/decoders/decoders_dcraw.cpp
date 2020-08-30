@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -17,6 +17,7 @@
  */
 
 #include "../../internal/dcraw_defs.h"
+#include "../../internal/libraw_cameraids.h"
 
 unsigned LibRaw::getbithuff(int nbits, ushort *huff)
 {
@@ -36,13 +37,13 @@ unsigned LibRaw::getbithuff(int nbits, ushort *huff)
     return bitbuf = vbits = reset = 0;
   if (nbits == 0 || vbits < 0)
     return 0;
-  while (!reset && vbits < nbits && (c = fgetc(ifp)) != EOF &&
+  while (!reset && vbits < nbits && (c = fgetc(ifp)) != (unsigned)EOF &&
          !(reset = zero_after_ff && c == 0xff && fgetc(ifp)))
   {
     bitbuf = (bitbuf << 8) + (uchar)c;
     vbits += 8;
   }
-  c = bitbuf << (32 - vbits) >> (32 - nbits);
+  c = vbits == 0 ? 0 : bitbuf << (32 - vbits) >> (32 - nbits);
   if (huff)
   {
     vbits -= huff[c] >> 8;
@@ -189,7 +190,7 @@ int LibRaw::canon_has_lowbits()
 
   fseek(ifp, 0, SEEK_SET);
   fread(test, 1, sizeof test, ifp);
-  for (i = 540; i < sizeof test - 1; i++)
+  for (i = 540; i < int(sizeof test - 1); i++)
     if (test[i] == 0xff)
     {
       if (test[i + 1])
@@ -280,12 +281,13 @@ int LibRaw::ljpeg_start(struct jhead *jh, int info_only)
 {
   ushort c, tag, len;
   int cnt = 0;
-  uchar data[0x10000];
+  std::vector<uchar> data_buffer(0x10000);
+  uchar* data = &data_buffer[0];
   const uchar *dp;
 
   memset(jh, 0, sizeof *jh);
   jh->restart = INT_MAX;
-  if ((fgetc(ifp), fgetc(ifp)) != 0xd8)
+  if (fread(data, 2, 1, ifp) != 1 || data[1] != 0xd8)
     return 0;
   do
   {
@@ -293,13 +295,14 @@ int LibRaw::ljpeg_start(struct jhead *jh, int info_only)
       return 0;
     if (cnt++ > 1024)
       return 0; // 1024 tags limit
-    if (!fread(data, 2, 2, ifp))
+    if (fread(data, 2, 2, ifp) != 2)
       return 0;
     tag = data[0] << 8 | data[1];
     len = (data[2] << 8 | data[3]) - 2;
     if (tag <= 0xff00)
       return 0;
-    fread(data, 1, len, ifp);
+    if (fread(data, 1, len, ifp) != len)
+      return 0;
     switch (tag)
     {
     case 0xffc3: // start of frame; lossless, Huffman
@@ -344,7 +347,7 @@ int LibRaw::ljpeg_start(struct jhead *jh, int info_only)
     FORC(4) jh->huff[2 + c] = jh->huff[1];
     FORC(jh->sraw) jh->huff[1 + c] = jh->huff[0];
   }
-  jh->row = (ushort *)calloc(jh->wide * jh->clrs, 4);
+  jh->row = (ushort *)calloc(jh->wide * jh->clrs, 16);
   merror(jh->row, "ljpeg_start()");
   return zero_after_ff = 1;
 }
@@ -366,6 +369,8 @@ int LibRaw::ljpeg_diff(ushort *huff)
   if (len == 16 && (!dng_version || dng_version >= 0x1010000))
     return -32768;
   diff = getbits(len);
+
+
   if ((diff & (1 << (len - 1))) == 0)
     diff -= (1 << len) - 1;
   return diff;
@@ -376,7 +381,11 @@ ushort *LibRaw::ljpeg_row(int jrow, struct jhead *jh)
   int col, c, diff, pred, spred = 0;
   ushort mark = 0, *row[3];
 
-  if (jrow * jh->wide % jh->restart == 0)
+  // Use the optimized, unrolled version if possible.
+  if (!jh->sraw)
+    return ljpeg_row_unrolled(jrow, jh);
+
+  if (jh->restart != 0 && jrow * jh->wide % jh->restart == 0)
   {
     FORC(6) jh->vpred[c] = 1 << (jh->bits - 1);
     if (jrow)
@@ -426,12 +435,109 @@ ushort *LibRaw::ljpeg_row(int jrow, struct jhead *jh)
           pred = 0;
         }
       if ((**row = pred + diff) >> jh->bits)
-        derror();
+		  if(!(load_flags & 512))
+			derror();
       if (c <= jh->sraw)
         spred = **row;
       row[0]++;
       row[1]++;
     }
+  return row[2];
+}
+
+ushort *LibRaw::ljpeg_row_unrolled(int jrow, struct jhead *jh)
+{
+  int col, c, diff, pred;
+  ushort mark = 0, *row[3];
+
+  if (jh->restart != 0 && jrow * jh->wide % jh->restart == 0)
+  {
+    FORC(6) jh->vpred[c] = 1 << (jh->bits - 1);
+    if (jrow)
+    {
+      fseek(ifp, -2, SEEK_CUR);
+      do
+        mark = (mark << 8) + (c = fgetc(ifp));
+      while (c != EOF && mark >> 4 != 0xffd);
+    }
+    getbits(-1);
+  }
+  FORC3 row[c] = jh->row + jh->wide * jh->clrs * ((jrow + c) & 1);
+
+  // The first column uses one particular predictor.
+  FORC(jh->clrs)
+  {
+    diff = ljpeg_diff(jh->huff[c]);
+    pred = (jh->vpred[c] += diff) - diff;
+    if ((**row = pred + diff) >> jh->bits)
+      derror();
+    row[0]++;
+    row[1]++;
+  }
+
+  if (!jrow)
+  {
+    for (col = 1; col < jh->wide; col++)
+      FORC(jh->clrs)
+      {
+        diff = ljpeg_diff(jh->huff[c]);
+        pred = row[0][-jh->clrs];
+        if ((**row = pred + diff) >> jh->bits)
+          derror();
+        row[0]++;
+        row[1]++;
+      }
+  }
+  else if (jh->psv == 1)
+  {
+    for (col = 1; col < jh->wide; col++)
+      FORC(jh->clrs)
+      {
+        diff = ljpeg_diff(jh->huff[c]);
+        pred = row[0][-jh->clrs];
+        if ((**row = pred + diff) >> jh->bits)
+          derror();
+        row[0]++;
+      }
+  }
+  else
+  {
+    for (col = 1; col < jh->wide; col++)
+      FORC(jh->clrs)
+      {
+        diff = ljpeg_diff(jh->huff[c]);
+        pred = row[0][-jh->clrs];
+        switch (jh->psv)
+        {
+        case 1:
+          break;
+        case 2:
+          pred = row[1][0];
+          break;
+        case 3:
+          pred = row[1][-jh->clrs];
+          break;
+        case 4:
+          pred = pred + row[1][0] - row[1][-jh->clrs];
+          break;
+        case 5:
+          pred = pred + ((row[1][0] - row[1][-jh->clrs]) >> 1);
+          break;
+        case 6:
+          pred = row[1][0] + ((pred - row[1][-jh->clrs]) >> 1);
+          break;
+        case 7:
+          pred = (pred + row[1][0]) >> 1;
+          break;
+        default:
+          pred = 0;
+        }
+        if ((**row = pred + diff) >> jh->bits)
+          derror();
+        row[0]++;
+        row[1]++;
+      }
+  }
   return row[2];
 }
 
@@ -615,9 +721,11 @@ void LibRaw::canon_sraw_load_raw()
       for (; rp < ip[0]; rp += 4)
       {
         checkCancel();
-        if (unique_id == 0x80000218ULL || unique_id == 0x80000250ULL ||
-            unique_id == 0x80000261ULL || unique_id == 0x80000281ULL ||
-            unique_id == 0x80000287ULL)
+        if ((unique_id == CanonID_EOS_5D_Mark_II) ||
+            (unique_id == CanonID_EOS_7D)         ||
+            (unique_id == CanonID_EOS_50D)        ||
+            (unique_id == CanonID_EOS_1D_Mark_IV) ||
+            (unique_id == CanonID_EOS_60D))
         {
           rp[1] = (rp[1] << 2) + hue;
           rp[2] = (rp[2] << 2) + hue;
@@ -627,7 +735,7 @@ void LibRaw::canon_sraw_load_raw()
         }
         else
         {
-          if (unique_id < 0x80000218ULL)
+          if (unique_id < CanonID_EOS_5D_Mark_II)
             rp[0] -= 512;
           pix[0] = rp[0] + rp[2];
           pix[2] = rp[0] + rp[1];
@@ -721,7 +829,7 @@ void LibRaw::pentax_load_raw()
 }
 void LibRaw::nikon_read_curve()
 {
-  ushort ver0, ver1, vpred[2][2], hpred[2], csize;
+  ushort ver0, ver1, vpred[2][2], csize;
   int i, step, max;
 
   fseek(ifp, meta_offset, SEEK_SET);
@@ -791,7 +899,7 @@ void LibRaw::nikon_load_raw()
     split = get2();
   }
 
-  while (curve[max - 2] == curve[max - 1])
+  while (max > 2 && (curve[max - 2] == curve[max - 1]))
     max--;
   huff = make_decoder(nikon_tree[tree]);
   fseek(ifp, data_offset, SEEK_SET);
@@ -813,7 +921,7 @@ void LibRaw::nikon_load_raw()
         len = i & 15;
         shl = i >> 4;
         diff = ((getbits(len - shl) << 1) + 1) << shl >> 1;
-        if ((diff & (1 << (len - 1))) == 0)
+        if (len > 0 && (diff & (1 << (len - 1))) == 0)
           diff -= (1 << len) - !shl;
         if (col < 2)
           hpred[col] = vpred[row & 1][col] += diff;
@@ -902,6 +1010,10 @@ void LibRaw::nokia_load_raw()
 
   rev = 3 * (order == 0x4949);
   dwide = (raw_width * 5 + 1) / 4;
+#ifdef USE_6BY9RPI
+  if (raw_stride)
+	  dwide = raw_stride;
+#endif
   data = (uchar *)malloc(dwide * 2);
   merror(data, "nokia_load_raw()");
   try
@@ -923,8 +1035,14 @@ void LibRaw::nokia_load_raw()
   }
   free(data);
   maximum = 0x3ff;
+#ifdef USE_6BY9RPI
+  if (!strcmp(make, "OmniVision") ||
+	  !strcmp(make, "Sony") ||
+	  !strcmp(make, "RaspberryPi")) return;
+#else
   if (strncmp(make, "OmniVision", 10))
-    return;
+	  return;
+#endif
   row = raw_height / 2;
   FORC(width - 1)
   {
@@ -1192,7 +1310,8 @@ void LibRaw::minolta_rd175_load_raw()
 
 void LibRaw::quicktake_100_load_raw()
 {
-  uchar pixel[484][644];
+  std::vector<uchar> pixel_buffer(484 * 644, 0x80);
+  uchar* pixel = &pixel_buffer[0];
   static const short gstep[16] = {-89, -60, -44, -32, -22, -15, -8, -2,
                                   2,   8,   15,  22,  32,  44,  60, 89};
   static const short rstep[6][4] = {{-3, -1, 1, 3},   {-5, -1, 1, 5},
@@ -1224,23 +1343,19 @@ void LibRaw::quicktake_100_load_raw()
     throw LIBRAW_EXCEPTION_IO_CORRUPT;
 
   getbits(-1);
-  memset(pixel, 0x80, sizeof pixel);
   for (row = 2; row < height + 2; row++)
   {
     checkCancel();
     for (col = 2 + (row & 1); col < width + 2; col += 2)
     {
-      val = ((pixel[row - 1][col - 1] + 2 * pixel[row - 1][col + 1] +
-              pixel[row][col - 2]) >>
-             2) +
-            gstep[getbits(4)];
-      pixel[row][col] = val = LIM(val, 0, 255);
+      val = ((pixel[(row - 1) * 644 + col - 1] + 2 * pixel[(row - 1) * 644 + col + 1] + pixel[row * 644 + col - 2]) >> 2) + gstep[getbits(4)];
+      pixel[row * 644 + col] = val = LIM(val, 0, 255);
       if (col < 4)
-        pixel[row][col - 2] = pixel[row + 1][~row & 1] = val;
+        pixel[row * 644 + col - 2] = pixel[(row + 1) * 644 + (~row & 1)] = val;
       if (row == 2)
-        pixel[row - 1][col + 1] = pixel[row - 1][col + 3] = val;
+        pixel[(row - 1) * 644 + col + 1] = pixel[(row - 1) * 644 + col + 3] = val;
     }
-    pixel[row][col] = val;
+    pixel[row * 644 + col] = val;
   }
   for (rb = 0; rb < 2; rb++)
     for (row = 2 + rb; row < height + 2; row += 2)
@@ -1252,22 +1367,20 @@ void LibRaw::quicktake_100_load_raw()
           sharp = 2;
         else
         {
-          val = ABS(pixel[row - 2][col] - pixel[row][col - 2]) +
-                ABS(pixel[row - 2][col] - pixel[row - 2][col - 2]) +
-                ABS(pixel[row][col - 2] - pixel[row - 2][col - 2]);
+          val = ABS(pixel[(row - 2) * 644 + col] - pixel[row * 644 + col - 2]) + ABS(pixel[(row - 2) * 644 + col] - pixel[(row - 2) * 644 + col - 2]) +
+                ABS(pixel[row * 644 + col - 2] - pixel[(row - 2) * 644 + col - 2]);
           sharp = val < 4
                       ? 0
                       : val < 8
                             ? 1
                             : val < 16 ? 2 : val < 32 ? 3 : val < 48 ? 4 : 5;
         }
-        val = ((pixel[row - 2][col] + pixel[row][col - 2]) >> 1) +
-              rstep[sharp][getbits(2)];
-        pixel[row][col] = val = LIM(val, 0, 255);
+        val = ((pixel[(row - 2) * 644 + col] + pixel[row * 644 + col - 2]) >> 1) + rstep[sharp][getbits(2)];
+        pixel[row * 644 + col] = val = LIM(val, 0, 255);
         if (row < 4)
-          pixel[row - 2][col + 2] = val;
+          pixel[(row - 2) * 644 + col + 2] = val;
         if (col < 4)
-          pixel[row + 2][col - 2] = val;
+          pixel[(row + 2) * 644 + col - 2] = val;
       }
     }
   for (row = 2; row < height + 2; row++)
@@ -1275,18 +1388,15 @@ void LibRaw::quicktake_100_load_raw()
     checkCancel();
     for (col = 3 - (row & 1); col < width + 2; col += 2)
     {
-      val = ((pixel[row][col - 1] + (pixel[row][col] << 2) +
-              pixel[row][col + 1]) >>
-             1) -
-            0x100;
-      pixel[row][col] = LIM(val, 0, 255);
+      val = ((pixel[row * 644 + col - 1] + (pixel[row * 644 + col] << 2) + pixel[row * 644 + col + 1]) >> 1) - 0x100;
+      pixel[row * 644 + col] = LIM(val, 0, 255);
     }
   }
   for (row = 0; row < height; row++)
   {
     checkCancel();
     for (col = 0; col < width; col++)
-      RAW(row, col) = t_curve[pixel[row + 2][col + 2]];
+      RAW(row, col) = t_curve[pixel[(row + 2) * 644 + col + 2]];
   }
   maximum = 0x3ff;
 }
@@ -1325,7 +1435,8 @@ void LibRaw::sony_load_raw()
 
 void LibRaw::sony_arw_load_raw()
 {
-  ushort huff[32770];
+  std::vector<ushort> huff_buffer(32770);
+  ushort* huff = &huff_buffer[0];
   static const ushort tab[18] = {0xf11, 0xf10, 0xe0f, 0xd0e, 0xc0d, 0xb0c,
                                  0xa0b, 0x90a, 0x809, 0x708, 0x607, 0x506,
                                  0x405, 0x304, 0x303, 0x300, 0x202, 0x201};
@@ -1513,9 +1624,8 @@ void LibRaw::samsung_load_raw()
         if (idest < maxpixels &&
             isrc <
                 maxpixels) // less than zero is handled by unsigned conversion
-          RAW(row, col + c) = ((signed)ph1_bits(i) << (32 - i) >> (32 - i)) +
-                              (dir ? RAW(row + (~c | -2), col + c)
-                                   : col ? RAW(row, col + (c | -2)) : 128);
+          RAW(row, col + c) = (i > 0 ? ((signed)ph1_bits(i) << (32 - i) >> (32 - i)) : 0) + 			                
+            (dir ? RAW(row + (~c | -2), col + c) : col ? RAW(row, col + (c | -2)) : 128);
         else
           derror();
         if (c == 14)
@@ -1614,7 +1724,7 @@ void LibRaw::samsung3_load_raw()
                       prow[col & 1][col - '4' + "0244668"[pmode]] + 1) >>
                          1;
         diff = ph1_bits(i = len[c >> 2]);
-        if (diff >> (i - 1))
+        if (i > 0 && diff >> (i - 1))
           diff -= 1 << i;
         diff = diff * (mag * 2 + 1) + mag;
         RAW(row, col) = pred + diff;

@@ -1,3 +1,5 @@
+#ifdef USE_X3FTOOLS
+
 /* Library for accessing X3F Files
 ----------------------------------------------------------------
 BSD-style License
@@ -179,6 +181,7 @@ static void new_huffman_tree(x3f_hufftree_t *HTP, int bits)
   int leaves = 1 << bits;
 
   HTP->free_node_index = 0;
+  HTP->total_node_index = HUF_TREE_MAX_NODES(leaves);
   HTP->nodes = (x3f_huffnode_t *)calloc(1, HUF_TREE_MAX_NODES(leaves) *
                                                sizeof(x3f_huffnode_t));
 }
@@ -708,6 +711,8 @@ static char *display_code(int length, uint32_t code, char *buffer)
 
 static x3f_huffnode_t *new_node(x3f_hufftree_t *tree)
 {
+	if (tree->free_node_index >= tree->total_node_index)
+		throw LIBRAW_EXCEPTION_IO_CORRUPT;
   x3f_huffnode_t *t = &tree->nodes[tree->free_node_index];
 
   t->branch[0] = NULL;
@@ -1042,6 +1047,8 @@ static void huffman_decode_row(x3f_info_t *I, x3f_directory_entry_t *DE,
   int col;
   bit_state_t BS;
 
+  if (HUF->row_offsets.element[row] > ID->data_size - 1)
+	  throw LIBRAW_EXCEPTION_IO_CORRUPT;
   set_bit_state(&BS, (uint8_t *)ID->data + HUF->row_offsets.element[row]);
 
   for (col = 0; col < ID->columns; col++)
@@ -1117,6 +1124,8 @@ static void simple_decode_row(x3f_info_t *I, x3f_directory_entry_t *DE,
   x3f_image_data_t *ID = &DEH->data_subsection.image_data;
   x3f_huffman_t *HUF = ID->huffman;
 
+  if (row*row_stride > ID->data_size - (ID->columns*sizeof(uint32_t)))
+	  throw LIBRAW_EXCEPTION_IO_CORRUPT;
   uint32_t *data = (uint32_t *)((unsigned char *)ID->data + row * row_stride);
 
   uint16_t c[3] = {0, 0, 0};
@@ -1495,6 +1504,9 @@ static void x3f_load_image(x3f_info_t *I, x3f_directory_entry_t *DE)
 {
   x3f_directory_entry_header_t *DEH = &DE->header;
   x3f_image_data_t *ID = &DEH->data_subsection.image_data;
+
+  if (ID->rows > 65535 || ID->columns > 65535)
+	  throw LIBRAW_EXCEPTION_IO_CORRUPT;
 
   read_data_set_offset(I, DE, X3F_IMAGE_HEADER_SIZE);
 
@@ -2107,3 +2119,5 @@ static void x3f_load_camf(x3f_info_t *I, x3f_directory_entry_t *DE)
 /* --------------------------------------------------------------------- */
 /* The End                                                               */
 /* --------------------------------------------------------------------- */
+
+#endif

@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019 LibRaw LLC (info@libraw.org)
+ * Copyright 2020 LibRaw LLC (info@libraw.org)
  *
 
  LibRaw is free software; you can redistribute it and/or modify
@@ -213,6 +213,7 @@ typedef struct x3f_huffnode_s
 typedef struct x3f_hufftree_s
 {
   uint32_t free_node_index; /* Free node index in huffman tree array */
+  uint32_t total_node_index;
   x3f_huffnode_t *nodes;    /* Coding tree */
 } x3f_hufftree_t;
 
