@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019-2020 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2021 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -125,11 +125,10 @@ void LibRaw::parse_ciff(int offset, int length, int depth)
       fread(model, 64, 1, ifp);
 
     } else if (type == 0x080b) {
-      char *p;
       stmread(imCommon.firmware, (unsigned)len, ifp);
-      if ((p = strrchr(imCommon.firmware, ' ')+1)) {
-        imCanon.firmware = atof(p);
-      }
+      if (!strncasecmp(imCommon.firmware, "Firmware Version", 16))
+        memmove(imCommon.firmware, imCommon.firmware + 16, strlen(imCommon.firmware) - 15);
+      trimSpaces(imCommon.firmware);
 
     } else if (type == 0x1810)
     {
@@ -282,7 +281,7 @@ void LibRaw::parse_ciff(int offset, int length, int depth)
 //           }
           }
         }
-        fseek (ifp, 68-Canon_D30_linenums_2_StdWBi.size()*8, SEEK_CUR);
+        fseek (ifp, 68-int(Canon_D30_linenums_2_StdWBi.size())*8, SEEK_CUR);
 
         FORC4 {
           q = get2();
@@ -310,7 +309,7 @@ void LibRaw::parse_ciff(int offset, int length, int depth)
         } else if (!CanonColorInfo1_key && (len == 2048)) { // G2, S30, S40; S45, S50, G3, G5
           key[0] = key[1] = 0;
           linenums_2_StdWBi = Canon_KeyIsZero_Len2048_linenums_2_StdWBi;
-          if (imCanon.firmware < 1.02f)
+          if (atof(imCommon.firmware) < 1.02f)
             UseWBfromTable_as_AsShot = 0;
 
         } else goto next_tag;
@@ -331,7 +330,7 @@ void LibRaw::parse_ciff(int offset, int length, int depth)
           }
         }
 
-        fseek (ifp, 78+WB_table_offset, SEEK_CUR);
+        fseek (ifp, 78LL+WB_table_offset, SEEK_CUR);
         for (int linenum = 0; linenum < linenums_2_StdWBi.size(); linenum++) {
           if (linenums_2_StdWBi[linenum] != LIBRAW_WBI_Unknown) {
             FORC4 icWBC[linenums_2_StdWBi[linenum]][GRBG_2_RGBG(c)] = get2() ^ key[c & 1];
