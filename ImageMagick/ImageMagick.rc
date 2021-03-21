@@ -2,8 +2,8 @@
 #include "ImageMagick.version.h"
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION LIBRARY_VERSION_NUM
- PRODUCTVERSION LIBRARY_VERSION_NUM
+ FILEVERSION DELEGATE_VERSION_NUM
+ PRODUCTVERSION DELEGATE_VERSION_NUM
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -22,8 +22,8 @@ BEGIN
             VALUE "FileDescription", "ImageMagick library and utility programs\0"
             VALUE "OriginalFilename", "LibRaw\0"
             VALUE "InternalName", "ImageMagick\0"
-            VALUE "FileVersion", LIBRARY_VERSION_STRING "\0"
-            VALUE "ProductVersion", LIBRARY_VERSION_STRING "\0"
+            VALUE "FileVersion", DELEGATE_VERSION_STRING "\0"
+            VALUE "ProductVersion", DELEGATE_VERSION_STRING "\0"
             VALUE "CompanyName", "LibRaw LLC\0"
             VALUE "LegalCopyright", "Copyright (c) 2008-2017 LibRaw LLC (info@libraw.org\0"
             VALUE "Comments", "https://www.libraw.org/\0"
