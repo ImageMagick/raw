@@ -43,6 +43,8 @@ void LibRaw::parse_phase_one(int base)
     tag = get4();
     type = get4();
     len = get4();
+	if (feof(ifp))
+		break;
     data = get4();
     save = ftell(ifp);
 	bool do_seek = (tag < 0x0108 || tag > 0x0110); // to make it single rule, not copy-paste
@@ -265,11 +267,15 @@ void LibRaw::parse_phase_one(int base)
     fseek(ifp, 6, SEEK_CUR);
     fseek(ifp, meta_offset + get4(), SEEK_SET);
     entries = get4();
+    if (entries > 8192)
+      return; // too much??
     get4();
     while (entries--)
     {
       tag = get4();
       len = get4();
+	  if (feof(ifp))
+		  break;
       data = get4();
       save = ftell(ifp);
       fseek(ifp, meta_offset + data, SEEK_SET);
@@ -428,20 +434,21 @@ void LibRaw::parse_mos(INT64 offset)
     if (!strcmp(data, "back_serial_number"))
     {
       char buffer[sizeof(imgdata.shootinginfo.BodySerial)];
-      char *words[4];
+      char *words[4] = {0, 0, 0, 0};
       stmread(buffer, (unsigned)skip, ifp);
       /*nwords = */
           getwords(buffer, words, 4, sizeof(imgdata.shootinginfo.BodySerial));
-      strcpy(imgdata.shootinginfo.BodySerial, words[0]);
+	  if(words[0])
+		strcpy(imgdata.shootinginfo.BodySerial, words[0]);
     }
     if (!strcmp(data, "CaptProf_serial_number"))
     {
       char buffer[sizeof(imgdata.shootinginfo.InternalBodySerial)];
-      char *words[4];
+      char *words[4] = {0, 0, 0, 0};
       stmread(buffer, (unsigned)skip, ifp);
-      /*nwords =*/ getwords(buffer, words, 4,
-                        sizeof(imgdata.shootinginfo.InternalBodySerial));
-      strcpy(imgdata.shootinginfo.InternalBodySerial, words[0]);
+      getwords(buffer, words, 4, sizeof(imgdata.shootinginfo.InternalBodySerial));
+	  if(words[0])
+		strcpy(imgdata.shootinginfo.InternalBodySerial, words[0]);
     }
 
     if (!strcmp(data, "JPEG_preview_data"))

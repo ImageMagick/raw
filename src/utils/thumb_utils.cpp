@@ -31,6 +31,9 @@ void LibRaw::kodak_thumb_loader()
   if (INT64(T.theight) * INT64(T.twidth) < 64ULL)
       throw LIBRAW_EXCEPTION_IO_CORRUPT;
 
+  if(T.twidth < 16 || T.twidth > 8192 || T.theight < 16 || T.theight > 8192)
+    throw LIBRAW_EXCEPTION_IO_CORRUPT;
+
   // some kodak cameras
   ushort s_height = S.height, s_width = S.width, s_iwidth = S.iwidth,
          s_iheight = S.iheight;
@@ -52,6 +55,9 @@ void LibRaw::kodak_thumb_loader()
     S.height += S.height & 1;
     S.width += S.width & 1;
   }
+
+  S.iheight = S.height;
+  S.iwidth = S.width;
 
   imgdata.image =
       (ushort(*)[4])calloc(S.iheight * S.iwidth, sizeof(*imgdata.image));
@@ -299,7 +305,7 @@ int LibRaw::dcraw_thumb_writer(const char *fname)
       jpeg_thumb_writer(tfp, T.thumb, T.tlength);
       break;
     case LIBRAW_THUMBNAIL_BITMAP:
-      fprintf(tfp, "P6\n%d %d\n255\n", T.twidth, T.theight);
+      fprintf(tfp, "P%d\n%d %d\n255\n", T.tcolors == 1 ? 5 : 6,  T.twidth, T.theight);
       fwrite(T.thumb, 1, T.tlength, tfp);
       break;
     default:

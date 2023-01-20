@@ -558,9 +558,10 @@ void LibRaw::identify()
     strncpy(model, head + 0x1c, 0x20);
     model[0x20] = 0;
     c = 11;
-    while (isdigit(imFuji.SerialSignature[c]) && (c>0))
+    while (imFuji.SerialSignature[c] > 0 && isdigit(imFuji.SerialSignature[c]) && (c>0))
       c--;
-    unique_id = (unsigned long long)atoi(imFuji.SerialSignature+c+1);
+	if(c < 11)
+		unique_id = (unsigned long long)atoi(imFuji.SerialSignature+c+1);
     memcpy(imFuji.RAFVersion, head + 0x3c, 4);
     imFuji.RAFVersion[4] = 0;
     fseek(ifp, 84, SEEK_SET);
@@ -708,7 +709,7 @@ void LibRaw::identify()
     short nesting = -1;
     short nTrack = -1;
     short TrackType;
-    char AtomNameStack[128];
+    char AtomNameStack[129];
     strcpy(make, "Canon");
 
     szAtomList = ifp->size();
@@ -1199,7 +1200,7 @@ dng_skip:
   if ((maker_index != LIBRAW_CAMERAMAKER_Unknown) && normalized_model[0])
     SetStandardIlluminants (maker_index, normalized_model);
 
-  // Clear errorneous fuji_width if not set through parse_fuji or for DNG
+  // Clear erroneous fuji_width if not set through parse_fuji or for DNG
   if (fuji_width && !dng_version &&
       !(imgdata.process_warnings & LIBRAW_WARN_PARSEFUJI_PROCESSED))
     fuji_width = 0;
@@ -1211,6 +1212,9 @@ dng_skip:
     width = (height >> fuji_layout) + fuji_width;
     height = width - 1;
     pixel_aspect = 1;
+	// Prevent incorrect-sized fuji-rotated files
+	if (INT64(width)*INT64(height) > INT64(raw_width) * INT64(raw_height) * 8LL)
+		is_raw = 0;
   }
   else
   {
@@ -1245,6 +1249,7 @@ dng_skip:
        is_raw = 0;
    if (dng_version && (tiff_samples < 1 || tiff_samples > 4))
        is_raw = 0; // we do not handle DNGs with more than 4 values per pixel
+
 #ifdef LIBRAW_OLD_VIDEO_SUPPORT
 #ifdef NO_JASPER
   if (load_raw == &LibRaw::redcine_load_raw)
@@ -2338,8 +2343,10 @@ void LibRaw::identify_finetune_dcr(char head[64], int fsize, int flen)
         left_margin = 4;
         break;
       case 6336: // X-H2S
-		  width = 6226;
-		  height = 4174;
+		  top_margin = 6;
+		  left_margin = 0;
+		  width = 6264;
+		  height = 4176;
 		  break;
       case 6384:                // X-T3, X-T4, X100V, X-S10, X-T30, X-Pro3
         top_margin = 0;
