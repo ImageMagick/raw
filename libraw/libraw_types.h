@@ -104,7 +104,7 @@ typedef unsigned long long UINT64;
   typedef unsigned short ushort;
 
 #ifdef LIBRAW_WIN32_DLLDEFS
-#ifdef LIBRAW_NODLL
+#if defined(LIBRAW_NODLL) || defined(_LIB)
 #define DllDef
 #else
 #ifdef LIBRAW_BUILDLIB
