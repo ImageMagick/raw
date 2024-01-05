@@ -27,14 +27,6 @@ it under the terms of the one of two licenses as you choose:
 #ifndef __cplusplus
 
 #else /* __cplusplus */
-
-#ifdef _MSC_VER
-#undef read
-#undef write
-#undef tell
-#pragma warning(disable: 4251)
-#endif
-
 #if defined _WIN32
 #ifndef LIBRAW_NO_WINSOCK2
 #include <winsock2.h>
