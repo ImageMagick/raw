@@ -79,6 +79,18 @@ it under the terms of the one of two licenses as you choose:
 
 #endif
 
+#if defined(_MSC_VER)
+  #if defined(_CRTDBG_MAP_ALLOC)
+    #undef free
+    #undef malloc
+    #undef calloc
+    #undef realloc
+  #endif
+  #undef read
+  #undef write
+  #pragma warning(disable: 4251)
+#endif
+
 #include "libraw_datastream.h"
 #include "libraw_types.h"
 #include "libraw_const.h"
