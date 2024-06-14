@@ -1,6 +1,6 @@
 /* -*- C++ -*-
  * File: libraw.h
- * Copyright 2008-2021 LibRaw LLC (info@libraw.org)
+ * Copyright 2008-2024 LibRaw LLC (info@libraw.org)
  * Created: Sat Mar  8, 2008
  *
  * LibRaw C++ interface
@@ -22,11 +22,6 @@ it under the terms of the one of two licenses as you choose:
 
 #ifdef __linux__
 #define _FILE_OFFSET_BITS 64
-#endif
-
-// Enable use old cinema cameras if USE_OLD_VIDEOCAMS defined
-#ifdef USE_OLD_VIDEOCAMS
-#define LIBRAW_OLD_VIDEO_SUPPORT
 #endif
 
 #ifndef LIBRAW_USE_DEPRECATED_IOSTREAMS_DATASTREAM
@@ -77,18 +72,6 @@ it under the terms of the one of two licenses as you choose:
 #  endif
 # endif
 
-#endif
-
-#if defined(_MSC_VER)
-  #if defined(_CRTDBG_MAP_ALLOC)
-    #undef free
-    #undef malloc
-    #undef calloc
-    #undef realloc
-  #endif
-  #undef read
-  #undef write
-  #pragma warning(disable: 4251)
 #endif
 
 #include "libraw_datastream.h"
@@ -390,7 +373,9 @@ protected:
   int crxDecodePlane(void *, uint32_t planeNumber);
   virtual void crxLoadFinalizeLoopE3(void *, int);
   void crxConvertPlaneLineDf(void *, int);
-
+  /* Panasonic Compression 8 parallel decoder stubs*/
+  virtual void pana8_decode_loop(void*);
+  int pana8_decode_strip(void*, int); // return: 0 if OK, non-zero on error
   int FCF(int row, int col)
   {
     int rr, cc;
@@ -429,12 +414,7 @@ protected:
   //void (LibRaw::*thumb_load_raw)();
   void (LibRaw::*pentax_component_load_raw)();
 
-  void kodak_thumb_loader();
   void write_thumb_ppm_tiff(FILE *);
-#ifdef USE_X3FTOOLS
-  void x3f_thumb_loader();
-  INT64 x3f_thumb_size();
-#endif
 
   int own_filtering_supported() { return 0; }
   void identify();
