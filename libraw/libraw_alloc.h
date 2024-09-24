@@ -1,6 +1,6 @@
 /* -*- C++ -*-
  * File: libraw_alloc.h
- * Copyright 2008-2024 LibRaw LLC (info@libraw.org)
+ * Copyright 2008-2021 LibRaw LLC (info@libraw.org)
  * Created: Sat Mar  22, 2008
  *
  * LibRaw C++ interface
@@ -24,13 +24,6 @@ it under the terms of the one of two licenses as you choose:
 #include "libraw_const.h"
 
 #ifdef __cplusplus
-
-#ifdef _MSC_VER
-#undef free
-#undef malloc
-#undef calloc
-#undef realloc
-#endif
 
 #define LIBRAW_MSIZE 512
 

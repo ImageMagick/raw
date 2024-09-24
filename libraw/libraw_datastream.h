@@ -1,6 +1,6 @@
 /* -*- C -*-
  * File: libraw_datastream.h
- * Copyright 2008-2024 LibRaw LLC (info@libraw.org)
+ * Copyright 2008-2021 LibRaw LLC (info@libraw.org)
  * Created: Sun Jan 18 13:07:35 2009
  *
  * LibRaw Data stream interface
@@ -27,14 +27,6 @@ it under the terms of the one of two licenses as you choose:
 #ifndef __cplusplus
 
 #else /* __cplusplus */
-
-#ifdef _MSC_VER
-#undef read
-#undef write
-#undef tell
-#pragma warning(disable: 4251)
-#endif
-
 #if defined _WIN32
 #ifndef LIBRAW_NO_WINSOCK2
 #include <winsock2.h>
@@ -103,6 +95,9 @@ public:
   virtual char *gets(char *, int) = 0;
   virtual int scanf_one(const char *, void *) = 0;
   virtual int eof() = 0;
+#ifdef LIBRAW_OLD_VIDEO_SUPPORT
+  virtual void *make_jas_stream() = 0;
+#endif
   virtual int jpeg_src(void *);
   virtual void buffering_off() {}
   /* reimplement in subclass to use parallel access in xtrans_load_raw() if
@@ -138,12 +133,16 @@ protected:
 #ifdef LIBRAW_WIN32_UNICODEPATHS
   std::wstring wfilename;
 #endif
+  FILE *jas_file;
 
 public:
   virtual ~LibRaw_file_datastream();
   LibRaw_file_datastream(const char *fname);
 #ifdef LIBRAW_WIN32_UNICODEPATHS
   LibRaw_file_datastream(const wchar_t *fname);
+#endif
+#ifdef LIBRAW_OLD_VIDEO_SUPPORT
+  virtual void *make_jas_stream();
 #endif
   virtual int valid();
   virtual int read(void *ptr, size_t size, size_t nmemb);
@@ -216,6 +215,9 @@ public:
 #endif
     virtual ~LibRaw_bigfile_buffered_datastream();
     virtual int valid();
+#ifdef LIBRAW_OLD_VIDEO_SUPPORT
+    virtual void *make_jas_stream();
+#endif
     virtual void buffering_off() { buffered = 0; }
     virtual int read(void *ptr, size_t size, size_t nmemb);
     virtual int eof();
@@ -264,6 +266,9 @@ public:
   LibRaw_buffer_datastream(const void *buffer, size_t bsize);
   virtual ~LibRaw_buffer_datastream();
   virtual int valid();
+#ifdef LIBRAW_OLD_VIDEO_SUPPORT
+  virtual void *make_jas_stream();
+#endif
   virtual int jpeg_src(void *jpegdata);
   virtual int read(void *ptr, size_t sz, size_t nmemb);
   virtual int eof();
@@ -292,6 +297,10 @@ public:
 #endif
   virtual ~LibRaw_bigfile_datastream();
   virtual int valid();
+#ifdef LIBRAW_OLD_VIDEO_SUPPORT
+  virtual void *make_jas_stream();
+#endif
+
   virtual int read(void *ptr, size_t size, size_t nmemb);
   virtual int eof();
   virtual int seek(INT64 o, int whence);

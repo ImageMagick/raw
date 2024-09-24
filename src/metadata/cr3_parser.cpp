@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019-2024 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2021 LibRaw LLC (info@libraw.org)
  *
 
  LibRaw is free software; you can redistribute it and/or modify
@@ -138,7 +138,6 @@ void LibRaw::selectCRXTrack()
   else
 	  return; // No RAW track index
 
-  int ctmdcount = 0;
   // Frame selected: parse CTMD metadata
   for (int i = 0, trackcnt = 0; i <= maxTrack && i < LIBRAW_CRXTRACKS_MAXCOUNT; i++)
   {
@@ -150,7 +149,6 @@ void LibRaw::selectCRXTrack()
 		  if (fsel)
 			  selectCRXFrame(i, fsel);
 		  parseCR3_CTMD(i);
-		  ctmdcount++;
 	  }
 	  else if (d->MediaType == 2) // JPEG
 	  {
@@ -230,10 +228,6 @@ void LibRaw::selectCRXTrack()
       }
     if (tiff_idx >= 0)
       flip = tiff_ifd[tiff_idx].t_flip;
-
-	if (ctmdcount == 1 && imgdata.makernotes.canon.multishot[0] && imgdata.makernotes.canon.multishot[1])
-		for (int c = 0; c < 4; c++)
-			cam_mul[c] = 1024;
   }
 }
 
@@ -449,7 +443,6 @@ int LibRaw::parseCR3(INT64 oAtomList,
 
   char UIID[16];
   uchar CMP1[85];
-  uchar thdr[4];
   uchar CDI1[60];
   char HandlerType[5], MediaFormatID[5];
   uint32_t relpos_inDir, relpos_inBox;
@@ -470,11 +463,6 @@ int LibRaw::parseCR3(INT64 oAtomList,
     err = 0;
     order = 0x4d4d;
     fseek(ifp, oAtom, SEEK_SET);
-	if (nesting == 0)
-	{
-      fread(thdr, 1, 4, ifp);
-      fseek(ifp, oAtom, SEEK_SET);
-	}
     szAtom = get4();
     FORC4 nmAtom[c] = AtomNameStack[nesting * 4 + c] = fgetc(ifp);
     AtomNameStack[(nesting + 1) * 4] = '\0';
@@ -490,14 +478,6 @@ int LibRaw::parseCR3(INT64 oAtomList,
 
     if (!AtomType)
     {
-		if (nesting == 0)
-		{
-			if(!memcmp(thdr,"II*\0",4) || !memcmp(thdr,"MM*\0",4))
-			{
-				err = 0;
-				goto fin;
-			}
-	    }
       err = 1;
     }
 
@@ -537,9 +517,9 @@ int LibRaw::parseCR3(INT64 oAtomList,
 		fread(UIID, 1, lHdr, ifp);
 		if (!memcmp(UIID, UUID_XMP, 16) && szAtom > 24LL && szAtom < 1024000LL)
 		{
-			xmpdata = (char *)malloc(xmplen = unsigned(szAtom - 23));
-			fread(xmpdata, szAtom - 24, 1, ifp);
-			xmpdata[szAtom - 24] = 0;
+			xmpdata = (char *)calloc(xmplen = unsigned(szAtom - 23),1);
+			unsigned br = fread(xmpdata,1, szAtom - 24, ifp);
+			xmpdata[br] = 0;
 		}
 		else if (!memcmp(UIID, UIID_CanonPreview, 16) && szAtom > 48LL && szAtom < 100LL * 1024000LL)
 		{
@@ -775,7 +755,7 @@ int LibRaw::parseCR3(INT64 oAtomList,
           goto fin;
         }
 
-        current_track.stsc_data = (crx_sample_to_chunk_t*) malloc(entries * sizeof(crx_sample_to_chunk_t));
+        current_track.stsc_data = (crx_sample_to_chunk_t*) calloc(entries * sizeof(crx_sample_to_chunk_t),1);
         if(!current_track.stsc_data)
         {
           err =  -9;
@@ -812,7 +792,7 @@ int LibRaw::parseCR3(INT64 oAtomList,
             err = -10;
             goto fin;
           }
-          current_track.sample_sizes = (int32_t*)malloc(entries * sizeof(int32_t));
+          current_track.sample_sizes = (int32_t*)calloc(entries * sizeof(int32_t),1);
           if (!current_track.sample_sizes)
           {
             err = -10;
@@ -836,7 +816,7 @@ int LibRaw::parseCR3(INT64 oAtomList,
           err = -11;
           goto fin;
         }
-        current_track.chunk_offsets = (INT64*)malloc(entries * sizeof(int64_t));
+        current_track.chunk_offsets = (INT64*)calloc(entries * sizeof(int64_t),1);
         if(!current_track.chunk_offsets)
         {
           err = -11;
