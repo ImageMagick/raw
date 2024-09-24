@@ -17,7 +17,6 @@ LIBRAW_NODLL
 internal
 src
 src\decoders
-src\decompressors
 src\demosaic
 src\integration
 src\metadata
