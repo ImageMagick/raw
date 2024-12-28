@@ -28,7 +28,7 @@ src\write
 
 [INCLUDES]
 .
-jpeg-turbo->.
+jpeg-turbo->src
 zlib->.
 
 [EXCLUDES]
