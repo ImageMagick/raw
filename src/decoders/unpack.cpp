@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019-2021 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2024 LibRaw LLC (info@libraw.org)
  *
  LibRaw is free software; you can redistribute it and/or modify
  it under the terms of the one of two licenses as you choose:
@@ -53,13 +53,8 @@ int LibRaw::unpack(void)
           INT64(imgdata.rawparams.max_raw_memory_mb) * INT64(1024 * 1024))
         throw LIBRAW_EXCEPTION_TOOBIG;
 
-#ifdef LIBRAW_CALLOC_RAWSTORE
-      libraw_internal_data.internal_data.meta_data =
-          (char *)calloc(libraw_internal_data.unpacker_data.meta_length,1);
-#else
       libraw_internal_data.internal_data.meta_data =
           (char *)malloc(libraw_internal_data.unpacker_data.meta_length);
-#endif
     }
 
     libraw_decoder_info_t decoder_info;
@@ -172,8 +167,10 @@ int LibRaw::unpack(void)
                       throw "Size mismatch";
 
                     // DECODED w/ success
-                  if (rs3ret.filters>1) // Fuji or bayer
-                      imgdata.rawdata.raw_image = (ushort*)rs3ret.pixeldata;
+				  if (rs3ret.filters > 1) // Fuji or bayer
+				  {
+					imgdata.rawdata.raw_image = (ushort*)rs3ret.pixeldata;
+				  }
                   else if (rs3ret.cpp == 4)
                   {
                       imgdata.rawdata.color4_image = (ushort(*)[4])rs3ret.pixeldata;
@@ -194,6 +191,16 @@ int LibRaw::unpack(void)
                     S.raw_width = rs3ret.width;
                     S.raw_height = rs3ret.height;
                     imgdata.process_warnings |= LIBRAW_WARN_RAWSPEED3_PROCESSED;
+
+					if (imgdata.rawdata.raw_image && 
+						load_raw == &LibRaw::phase_one_load_raw_c && imgdata.color.phase_one_data.format != 8)
+                    {
+                      // Scale data to match libraw own decoder
+                      for (int row = 0; row < rs3ret.height; row++)
+                        for (int col = 0; col < rs3ret.pitch / 2; col++)
+                          imgdata.rawdata.raw_image[row * rs3ret.pitch / 2 + col] <<= 2;
+                    }
+
                     // if (r->whitePoint > 0 && r->whitePoint < 65536)
                     // C.maximum = r->whitePoint;
                   }
@@ -318,13 +325,8 @@ int LibRaw::unpack(void)
 				+ +INT64(libraw_internal_data.unpacker_data.meta_length) >
               INT64(imgdata.rawparams.max_raw_memory_mb) * INT64(1024 * 1024))
             throw LIBRAW_EXCEPTION_TOOBIG;
-#ifdef LIBRAW_CALLOC_RAWSTORE
-          imgdata.rawdata.raw_alloc = calloc(
-              rwidth * (rheight + 8), sizeof(imgdata.rawdata.raw_image[0]));
-#else
           imgdata.rawdata.raw_alloc = malloc(
               rwidth * (rheight + 8) * sizeof(imgdata.rawdata.raw_image[0]));
-#endif
           imgdata.rawdata.raw_image = (ushort *)imgdata.rawdata.raw_alloc;
           if (!S.raw_pitch)
             S.raw_pitch = S.raw_width * 2; // Bayer case, not set before
@@ -352,13 +354,8 @@ int LibRaw::unpack(void)
             INT64(imgdata.rawparams.max_raw_memory_mb) * INT64(1024 * 1024))
           throw LIBRAW_EXCEPTION_TOOBIG;
 
-#ifdef LIBRAW_CALLOC_RAWSTORE
-        imgdata.rawdata.raw_alloc = calloc(
-            rwidth * (rheight + 8), sizeof(imgdata.rawdata.raw_image[0]) * 3);
-#else
         imgdata.rawdata.raw_alloc = malloc(
             rwidth * (rheight + 8) * sizeof(imgdata.rawdata.raw_image[0]) * 3);
-#endif
         imgdata.rawdata.color3_image = (ushort(*)[3])imgdata.rawdata.raw_alloc;
         if (!S.raw_pitch)
           S.raw_pitch = S.raw_width * 6;

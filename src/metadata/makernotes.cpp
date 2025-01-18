@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019-2021 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2024 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -208,12 +208,12 @@ void LibRaw::parse_makernote_0xc634(int base, int uptag, unsigned dng_writer)
       { // camera info
         if (!tagtypeIs(LIBRAW_EXIFTAG_TYPE_LONG))
         {
-          CanonCameraInfo = (uchar *)calloc(MAX(16, len),1);
+          CanonCameraInfo = (uchar *)malloc(MAX(16, len));
           fread(CanonCameraInfo, len, 1, ifp);
         }
         else
         {
-          CanonCameraInfo = (uchar *)calloc(MAX(16, len * 4),1);
+          CanonCameraInfo = (uchar *)malloc(MAX(16, len * 4));
           fread(CanonCameraInfo, len, 4, ifp);
         }
         lenCanonCameraInfo = len;
@@ -561,12 +561,12 @@ void LibRaw::parse_makernote(int base, int uptag)
       {
         if (!tagtypeIs(LIBRAW_EXIFTAG_TYPE_LONG))
         {
-          CanonCameraInfo = (uchar *)calloc(MAX(16, len),1);
+          CanonCameraInfo = (uchar *)malloc(MAX(16, len));
           fread(CanonCameraInfo, len, 1, ifp);
         }
         else
         {
-          CanonCameraInfo = (uchar *)calloc(MAX(16, len * 4),1);
+          CanonCameraInfo = (uchar *)malloc(MAX(16, len * 4));
           fread(CanonCameraInfo, len, 4, ifp);
         }
         lenCanonCameraInfo = len;

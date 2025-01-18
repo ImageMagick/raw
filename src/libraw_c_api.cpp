@@ -1,6 +1,6 @@
 /* -*- C++ -*-
  * File: libraw_c_api.cpp
- * Copyright 2008-2021 LibRaw LLC (info@libraw.org)
+ * Copyright 2008-2024 LibRaw LLC (info@libraw.org)
  * Created: Sat Mar  8 , 2008
  *
  * LibRaw C interface
@@ -213,6 +213,14 @@ extern "C"
       return;
     LibRaw *ip = (LibRaw *)lr->parent_class;
     ip->set_progress_handler(cb, data);
+  }
+
+  int libraw_adjust_to_raw_inset_crop(libraw_data_t *lr, unsigned mask, float maxcrop)
+  {
+    if (!lr)
+      return EINVAL;
+    LibRaw *ip = (LibRaw *)lr->parent_class;
+    return ip->adjust_to_raw_inset_crop(mask,maxcrop);
   }
 
   // DCRAW

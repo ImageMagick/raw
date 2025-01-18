@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019-2021 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2024 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -1022,7 +1022,7 @@ void LibRaw::nokia_load_raw()
   if (raw_stride)
 	  dwide = raw_stride;
 #endif
-  std::vector<uchar> data(dwide * 2 + 4,0);
+  std::vector<uchar> data(dwide * 2 + 4);
   for (row = 0; row < raw_height; row++)
   {
       checkCancel();
@@ -1051,38 +1051,6 @@ void LibRaw::nokia_load_raw()
     filters = 0x4b4b4b4b;
 }
 
-#ifdef LIBRAW_OLD_VIDEO_SUPPORT
-
-void LibRaw::canon_rmf_load_raw()
-{
-  int row, col, bits, orow, ocol, c;
-
-  int *words = (int *)malloc(sizeof(int) * (raw_width / 3 + 1));
-  for (row = 0; row < raw_height; row++)
-  {
-    checkCancel();
-    fread(words, sizeof(int), raw_width / 3, ifp);
-    for (col = 0; col < raw_width - 2; col += 3)
-    {
-      bits = words[col / 3];
-      FORC3
-      {
-        orow = row;
-        if ((ocol = col + c - 4) < 0)
-        {
-          ocol += raw_width;
-          if ((orow -= 2) < 0)
-            orow += raw_height;
-        }
-        RAW(orow, ocol) = curve[bits >> (10 * c + 2) & 0x3ff];
-      }
-    }
-  }
-  free(words);
-  maximum = curve[0x3ff];
-}
-#endif
-
 unsigned LibRaw::pana_data(int nb, unsigned *bytes)
 {
 #ifndef LIBRAW_NOTHREADS
@@ -1095,17 +1063,11 @@ unsigned LibRaw::pana_data(int nb, unsigned *bytes)
   int byte;
 
   if (!nb && !bytes)
-  {
-	  memset(buf, 0, sizeof(buf));
-	  return vpos = 0;
-  }
-  if (load_flags > 0x4000)
-	  throw LIBRAW_EXCEPTION_IO_BADFILE;
+    return vpos = 0;
 
   if (!vpos)
   {
-	if(load_flags < 0x4000)
-		fread(buf + load_flags, 1, 0x4000 - load_flags, ifp);
+    fread(buf + load_flags, 1, 0x4000 - load_flags, ifp);
     fread(buf, 1, load_flags, ifp);
   }
 
@@ -1444,7 +1406,7 @@ void LibRaw::sony_load_raw()
 
 void LibRaw::sony_arw_load_raw()
 {
-  std::vector<ushort> huff_buffer(32770,0);
+  std::vector<ushort> huff_buffer(32770);
   ushort* huff = &huff_buffer[0];
   static const ushort tab[18] = {0xf11, 0xf10, 0xe0f, 0xd0e, 0xc0d, 0xb0c,
                                  0xa0b, 0x90a, 0x809, 0x708, 0x607, 0x506,
@@ -1476,7 +1438,7 @@ void LibRaw::sony_arw2_load_raw()
   ushort pix[16];
   int row, col, val, max, min, imax, imin, sh, bit, i;
 
-  data = (uchar *)calloc(raw_width + 1,1);
+  data = (uchar *)malloc(raw_width + 1);
   try
   {
     for (row = 0; row < height; row++)
@@ -1734,83 +1696,3 @@ void LibRaw::samsung3_load_raw()
   }
 }
 
-#ifdef LIBRAW_OLD_VIDEO_SUPPORT
-void LibRaw::redcine_load_raw()
-{
-#ifndef NO_JASPER
-  int c, row, col;
-  jas_stream_t *in;
-  jas_image_t *jimg;
-  jas_matrix_t *jmat;
-  jas_seqent_t *data;
-  ushort *img, *pix;
-
-  jas_init();
-  in = (jas_stream_t *)ifp->make_jas_stream();
-  if (!in)
-    throw LIBRAW_EXCEPTION_DECODE_JPEG2000;
-  jas_stream_seek(in, data_offset + 20, SEEK_SET);
-  jimg = jas_image_decode(in, -1, 0);
-  if (!jimg)
-  {
-    jas_stream_close(in);
-    throw LIBRAW_EXCEPTION_DECODE_JPEG2000;
-  }
-  jmat = jas_matrix_create(height / 2, width / 2);
-  img = (ushort *)calloc((height + 2), (width + 2) * 2);
-  bool fastexitflag = false;
-  try
-  {
-    FORC4
-    {
-      checkCancel();
-      jas_image_readcmpt(jimg, c, 0, 0, width / 2, height / 2, jmat);
-      data = jas_matrix_getref(jmat, 0, 0);
-      for (row = c >> 1; row < height; row += 2)
-        for (col = c & 1; col < width; col += 2)
-          img[(row + 1) * (width + 2) + col + 1] =
-              data[(row / 2) * (width / 2) + col / 2];
-    }
-    for (col = 1; col <= width; col++)
-    {
-      img[col] = img[2 * (width + 2) + col];
-      img[(height + 1) * (width + 2) + col] =
-          img[(height - 1) * (width + 2) + col];
-    }
-    for (row = 0; row < height + 2; row++)
-    {
-      img[row * (width + 2)] = img[row * (width + 2) + 2];
-      img[(row + 1) * (width + 2) - 1] = img[(row + 1) * (width + 2) - 3];
-    }
-    for (row = 1; row <= height; row++)
-    {
-      checkCancel();
-      pix = img + row * (width + 2) + (col = 1 + (FC(row, 1) & 1));
-      for (; col <= width; col += 2, pix += 2)
-      {
-        c = (((pix[0] - 0x800) << 3) + pix[-(width + 2)] + pix[width + 2] +
-             pix[-1] + pix[1]) >>
-            2;
-        pix[0] = LIM(c, 0, 4095);
-      }
-    }
-    for (row = 0; row < height; row++)
-    {
-      checkCancel();
-      for (col = 0; col < width; col++)
-        RAW(row, col) = curve[img[(row + 1) * (width + 2) + col + 1]];
-    }
-  }
-  catch (...)
-  {
-    fastexitflag = true;
-  }
-  free(img);
-  jas_matrix_destroy(jmat);
-  jas_image_destroy(jimg);
-  jas_stream_close(in);
-  if (fastexitflag)
-    throw LIBRAW_EXCEPTION_CANCELLED_BY_CALLBACK;
-#endif
-}
-#endif

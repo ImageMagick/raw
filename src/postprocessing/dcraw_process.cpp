@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019-2021 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2024 LibRaw LLC (info@libraw.org)
  *
  LibRaw is free software; you can redistribute it and/or modify
  it under the terms of the one of two licenses as you choose:
@@ -218,7 +218,7 @@ int LibRaw::dcraw_process(void)
     if (!libraw_internal_data.output_data.histogram)
     {
       libraw_internal_data.output_data.histogram =
-          (int(*)[LIBRAW_HISTOGRAM_SIZE])calloc(1,
+          (int(*)[LIBRAW_HISTOGRAM_SIZE])malloc(
               sizeof(*libraw_internal_data.output_data.histogram) * 4);
     }
 #ifndef NO_LCMS

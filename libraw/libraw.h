@@ -1,6 +1,6 @@
 /* -*- C++ -*-
  * File: libraw.h
- * Copyright 2008-2021 LibRaw LLC (info@libraw.org)
+ * Copyright 2008-2024 LibRaw LLC (info@libraw.org)
  * Created: Sat Mar  8, 2008
  *
  * LibRaw C++ interface
@@ -22,11 +22,6 @@ it under the terms of the one of two licenses as you choose:
 
 #ifdef __linux__
 #define _FILE_OFFSET_BITS 64
-#endif
-
-// Enable use old cinema cameras if USE_OLD_VIDEOCAMS defined
-#ifdef USE_OLD_VIDEOCAMS
-#define LIBRAW_OLD_VIDEO_SUPPORT
 #endif
 
 #ifndef LIBRAW_USE_DEPRECATED_IOSTREAMS_DATASTREAM
@@ -125,11 +120,11 @@ extern "C"
   DllDef int libraw_raw2image(libraw_data_t *);
   DllDef void libraw_free_image(libraw_data_t *);
   /* version helpers */
-  DllDef const char *libraw_version();
-  DllDef int libraw_versionNumber();
+  DllDef const char *libraw_version(void);
+  DllDef int libraw_versionNumber(void);
   /* Camera list */
-  DllDef const char **libraw_cameraList();
-  DllDef int libraw_cameraCount();
+  DllDef const char **libraw_cameraList(void);
+  DllDef int libraw_cameraCount(void);
 
   /* helpers */
   DllDef void libraw_set_exifparser_handler(libraw_data_t *,
@@ -143,7 +138,8 @@ extern "C"
   DllDef int libraw_get_decoder_info(libraw_data_t *lr,
                                      libraw_decoder_info_t *d);
   DllDef int libraw_COLOR(libraw_data_t *, int row, int col);
-  DllDef unsigned libraw_capabilities();
+  DllDef unsigned libraw_capabilities(void);
+  DllDef int libraw_adjust_to_raw_inset_crop(libraw_data_t *lr, unsigned mask, float maxcrop);
 
   /* DCRAW compatibility */
   DllDef int libraw_adjust_sizes_info_only(libraw_data_t *);
@@ -378,7 +374,9 @@ protected:
   int crxDecodePlane(void *, uint32_t planeNumber);
   virtual void crxLoadFinalizeLoopE3(void *, int);
   void crxConvertPlaneLineDf(void *, int);
-
+  /* Panasonic Compression 8 parallel decoder stubs*/
+  virtual void pana8_decode_loop(void*);
+  int pana8_decode_strip(void*, int); // return: 0 if OK, non-zero on error
   int FCF(int row, int col)
   {
     int rr, cc;
@@ -417,12 +415,7 @@ protected:
   //void (LibRaw::*thumb_load_raw)();
   void (LibRaw::*pentax_component_load_raw)();
 
-  void kodak_thumb_loader();
   void write_thumb_ppm_tiff(FILE *);
-#ifdef USE_X3FTOOLS
-  void x3f_thumb_loader();
-  INT64 x3f_thumb_size();
-#endif
 
   int own_filtering_supported() { return 0; }
   void identify();
