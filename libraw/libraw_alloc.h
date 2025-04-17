@@ -25,13 +25,6 @@ it under the terms of the one of two licenses as you choose:
 
 #ifdef __cplusplus
 
-#ifdef _MSC_VER
-#undef free
-#undef malloc
-#undef calloc
-#undef realloc
-#endif
-
 #define LIBRAW_MSIZE 512
 
 class DllDef libraw_memmgr
