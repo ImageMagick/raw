@@ -1,4 +1,4 @@
-[DLL]
+[DYNAMIC_LIBRARY]
 
 [LICENSE]
 COPYRIGHT
@@ -7,39 +7,29 @@ COPYRIGHT
 USE_ZLIB
 USE_JPEG
 
-[DEFINES_DLL]
+[DYNAMIC_DEFINES]
 LIBRAW_BUILDLIB
 
-[DEFINES_LIB]
+[STATIC_DEFINES]
 LIBRAW_NODLL
 
-[DIRECTORIES]
-internal
-src
-src\decoders
-src\decompressors
-src\demosaic
-src\integration
-src\metadata
-src\postprocessing
-src\preprocessing
-src\tables
-src\utils
-src\write
-
-[INCLUDES]
-.
-jpeg-turbo->src
-zlib->.
+[INCLUDE_ARTIFACTS]
+libraw -> .
 
 [EXCLUDES]
-*_ph.cpp
+RawSpeed\
+RawSpeed3\
+samples\
+src\x3f\
+src\postprocessing\postprocessing_ph.cpp
+src\preprocessing\preprocessing_ph.cpp
+src\write\write_ph.cpp
 
-[DEPENDENCIES]
+[REFERENCES]
 jpeg-turbo
 zlib
 
-[CONFIG_DEFINE]
+[MAGICK_BASECONFIG_DEFINE]
 /*
   Define to use the Raw library
 */
