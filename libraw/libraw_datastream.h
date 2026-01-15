@@ -1,6 +1,6 @@
 /* -*- C -*-
  * File: libraw_datastream.h
- * Copyright 2008-2024 LibRaw LLC (info@libraw.org)
+ * Copyright 2008-2025 LibRaw LLC (info@libraw.org)
  * Created: Sun Jan 18 13:07:35 2009
  *
  * LibRaw Data stream interface
@@ -27,14 +27,6 @@ it under the terms of the one of two licenses as you choose:
 #ifndef __cplusplus
 
 #else /* __cplusplus */
-
-#ifdef _MSC_VER
-#undef read
-#undef write
-#undef tell
-#pragma warning(disable: 4251)
-#endif
-
 #if defined _WIN32
 #ifndef LIBRAW_NO_WINSOCK2
 #ifdef NOMINMAX
