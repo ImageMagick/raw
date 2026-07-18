@@ -25,13 +25,6 @@ it under the terms of the one of two licenses as you choose:
 
 #ifdef __cplusplus
 
-#ifdef _MSC_VER
-#undef free
-#undef malloc
-#undef calloc
-#undef realloc
-#endif
-
 #define LIBRAW_MSIZE 512
 
 class DllDef libraw_memmgr
@@ -41,12 +34,14 @@ public:
   {
     size_t alloc_sz = LIBRAW_MSIZE * sizeof(void *);
     mems = (void **)::malloc(alloc_sz);
-    memset(mems, 0, alloc_sz);
+	if(mems)
+		memset(mems, 0, alloc_sz);
   }
   ~libraw_memmgr()
   {
     cleanup();
-    ::free(mems);
+	if(mems)
+		::free(mems);
   }
   void *malloc(size_t sz)
   {
@@ -78,6 +73,7 @@ public:
   }
   void cleanup(void)
   {
+	if (!mems) return;
     for (int i = 0; i < LIBRAW_MSIZE; i++)
       if (mems[i])
       {
@@ -91,6 +87,7 @@ private:
   unsigned extra_bytes;
   void mem_ptr(void *ptr)
   {
+	  if (!mems) return;
 #if defined(LIBRAW_USE_OPENMP)
       bool ok = false; /* do not return from critical section */
 #endif
@@ -133,6 +130,7 @@ private:
   }
   void forget_ptr(void *ptr)
   {
+	if (!mems) return;
 #if defined(LIBRAW_USE_OPENMP)
 #pragma omp critical
     {
