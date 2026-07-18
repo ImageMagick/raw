@@ -4,7 +4,7 @@
 0.22.2
 
 [RELEASE_DATE]
-2026-06-`6
+2026-07-16
 
 [PRODUCT_NAME]
 libraw
