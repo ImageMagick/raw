@@ -1,0 +1,37 @@
+diff --git a/libraw/libraw_alloc.h b/libraw/libraw_alloc.h
+index aebf7e0..b34aab7 100644
+--- a/libraw/libraw_alloc.h
++++ b/libraw/libraw_alloc.h
+@@ -25,6 +25,13 @@ it under the terms of the one of two licenses as you choose:
+ 
+ #ifdef __cplusplus
+ 
++#ifdef _MSC_VER
++#undef free
++#undef malloc
++#undef calloc
++#undef realloc
++#endif
++
+ #define LIBRAW_MSIZE 512
+ 
+ class DllDef libraw_memmgr
+diff --git a/libraw/libraw_datastream.h b/libraw/libraw_datastream.h
+index 6bcc8a7..e83bfeb 100644
+--- a/libraw/libraw_datastream.h
++++ b/libraw/libraw_datastream.h
+@@ -27,6 +27,14 @@ it under the terms of the one of two licenses as you choose:
+ #ifndef __cplusplus
+ 
+ #else /* __cplusplus */
++
++#ifdef _MSC_VER
++#undef read
++#undef write
++#undef tell
++#pragma warning(disable: 4251)
++#endif
++
+ #if defined _WIN32
+ #ifndef LIBRAW_NO_WINSOCK2
+ #ifdef NOMINMAX
